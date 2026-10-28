@@ -110,6 +110,25 @@ console.log('\n— Gli altri controlli —')
   is('un lead sano non produce rilievi',
     controlla(F, [r('a', { contact_phone: '3331112222', last_interaction_at: '2026-09-20' })], OGGI).length, 0)
   is('e nemmeno una tabella vuota', controlla(F, [], OGGI).length, 0)
+
+  /* §494 — il modulo IA l'azienda non la chiede: il nome è della persona */
+  const ia = r('a', { company_name: 'Bea Neri', contact_name: 'bea  neri', contact_phone: '3331112222', last_interaction_at: '2026-09-20' })
+  is('azienda col nome della persona, e aperta', chiavi([ia]).includes('azienda_da_completare'), true)
+  is('non se l\'azienda è stata scritta',
+    chiavi([{ ...ia, company_name: 'Neri Srl' }]).includes('azienda_da_completare'), false)
+  is('né se il lead è chiuso', chiavi([{ ...ia, stage: 'perso' }]).includes('azienda_da_completare'), false)
+  is('né senza referente', chiavi([{ ...ia, contact_name: null }]).includes('azienda_da_completare'), false)
+
+  const doppio = controlla(F, [
+    r('x', { contact_phone: '3331112222', lead_origine: { form: 'Modulo 1  - Lancio' } }),
+    r('y', { contact_phone: '+39 333 111 2222', lead_origine: { form: 'Modulo IA', scheda: 'Modulo 2 - IA' } }),
+  ], OGGI).find(x => x.chiave === 'doppioni')
+  is('il doppione fra due moduli lo dice', doppio?.gruppi[0].perche.endsWith('da 2 moduli: Modulo 1 - Lancio, Modulo IA'), true)
+  const stesso = controlla(F, [
+    r('x', { contact_phone: '3331112222', lead_origine: { form: 'Modulo IA' } }),
+    r('y', { contact_phone: '3331112222', lead_origine: { form: 'Modulo IA' } }),
+  ], OGGI).find(x => x.chiave === 'doppioni')
+  is('e dallo stesso modulo non aggiunge niente', /moduli/.test(stesso?.gruppi[0].perche ?? ''), false)
 }
 
 console.log('\n— Il conteggio in testata —')

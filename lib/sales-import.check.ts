@@ -111,5 +111,34 @@ is('non entrano tutti dalla stessa porta', Object.keys(perFase).length > 1, true
 is('e lo stato originale resta leggibile su chi ce l\'aveva',
   lead.filter(l => l.stage !== chiaveIngresso(FASI_SEME) && !l.sheetStatus).length, 0)
 
+console.log('\n— §494 · Il modulo IA: altre colonne, stesse regole —')
+/* Le intestazioni vere della scheda «Modulo 2 - IA» (28 ottobre 2026), con
+   dati inventati: niente azienda, `email` al posto di `work_email`, niente
+   Note né Follow up, e cinque domande sue. */
+const IA = 'id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,is_organic,platform,'
+  + '-quante_persone_lavorano_nella_tua_azienda?,qual_è_il_fatturato_annuo_indicativo_della_tua_azienda?,'
+  + 'qual_è_la_principale_difficoltà_che_vorresti_risolvere?,quando_vorresti_iniziare_a_migliorare_questi_aspetti?,'
+  + 'quale_budget_valuteresti_per_un_progetto_di_ai_e_automazione?,full_name,email,phone_number,lead_status,STATUS\n'
+  + 'l:111,2026-10-27T16:16:36-05:00,ag:1,Processi Complessi_Statico_Combined,as:1,Adset IA,c:1,Campagna IA,f:1,Modulo IA,false,fb,'
+  + '1–5,fino_a_250.000_€,vorrei_capire_cosa_posso_automatizzare,entro_1–3_mesi,0–5.000_€,Bea Neri,bea@example.test,p:+39333000111,CREATED,\n'
+  + 'l:112,2026-10-27T09:43:18-05:00,,<test lead: dummy data for ad_name>,,,,,f:1,Modulo IA,true,,'
+  + '<test lead: dummy data for x>,,,,,<test lead: dummy data for full_name>,test@meta.com,<test lead: dummy data for phone_number>,TEST,'
+const aIa = analizzaFoglio(IA, 'Modulo 2 - IA')
+is('la scheda IA passa il controllo delle intestazioni', aIa.lead.length, 1)
+is('la prova di Meta resta fuori', aIa.scartati, 1)
+is('e dice quali colonne non ha', aIa.assenti, ['company_name', 'Note', 'Follow up'])
+const bea = aIa.lead[0]
+is('l\'email arriva anche da `email`', bea.contactEmail, 'bea@example.test')
+is('la persona fa da azienda e resta referente', [bea.companyName, bea.contactName], ['Bea Neri', 'Bea Neri'])
+is('la scheda finisce nella provenienza', bea.origine.scheda, 'Modulo 2 - IA')
+is('le domande IA nelle chiavi di sempre, dove ci sono',
+  [bea.origine.fatturato_dichiarato, bea.origine.tempistica], ['Fino a 250.000 €', 'Entro 1–3 mesi'])
+is('e nelle chiavi sue, dove non ci sono',
+  [bea.origine.dipendenti, bea.origine.budget, bea.origine.difficolta], ['1–5', '0–5.000 €', 'Vorrei capire cosa posso automatizzare'])
+let senzaEmail = ''
+try { analizzaFoglio('id,created_time,full_name,phone_number\n1,x,Ada,') } catch (e) { senzaEmail = (e as Error).message }
+is('senza nessuna delle due email la scheda si ferma', /work_email o email/.test(senzaEmail), true)
+is('il Modulo 1 non ha colonne assenti', analisi.assenti, [])
+
 console.log(fail === 0 ? '\nTutti i controlli passano.\n' : `\n${fail} controlli falliti.\n`)
 process.exit(fail === 0 ? 0 : 1)

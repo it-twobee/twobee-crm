@@ -27,6 +27,10 @@ is('oltre 5', rangoFatturato({ fatturato_dichiarato: 'Oltre 5 m€ / anno' }), 4
 is('1–5 M', rangoFatturato({ fatturato_dichiarato: '1 m€ – 5 m€ / anno' }), 3)
 is('500k–1M', rangoFatturato({ fatturato_dichiarato: '500.000 € – 1 m€ / anno' }), 2)
 is('meno di 500k', rangoFatturato({ fatturato_dichiarato: 'Meno di 500.000 € / anno' }), 1)
+is('IA · fino a 250k sta sotto «meno di 500k»', rangoFatturato({ fatturato_dichiarato: 'Fino a 250.000 €' }), 0.5)
+is('IA · 250–500k vale «meno di 500k»', fatturatoDichiarato({ fatturato_dichiarato: '250.000–500.000 €' }), { rango: 1, corta: '250–500k' })
+is('IA · 500k–1M', rangoFatturato({ fatturato_dichiarato: '500.000–1.000.000 €' }), 2)
+is('IA · 1–5M', rangoFatturato({ fatturato_dichiarato: '1.000.000–5.000.000 €' }), 3)
 is('lead di prova → null, non 0', fatturatoDichiarato({ fatturato_dichiarato: '<test lead: dummy data for qual_è_il_tuo_fatturato_annuo?>' }), null)
 
 console.log('\n— Ordine e filtro —')

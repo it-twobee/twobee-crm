@@ -185,8 +185,13 @@ const oppureNull = (v: string | undefined) => {
  * che nessuno sa cosa sia, e in tre giorni ce ne sarebbero dieci. Se manca
  * l'azienda ma c'è il nome della persona, quello diventa il nome: chi ha
  * compilato il modulo di corsa ha scritto sé stesso, ed è comunque un lead.
+ *
+ * §494 — e la persona resta **anche** referente. Il modulo IA l'azienda non
+ * la chiede proprio: tutti i suoi lead entrano col nome della persona al posto
+ * dell'azienda, e il giorno in cui qualcuno scrive l'azienda vera il nome di
+ * chi ha compilato spariva con lei. Il Controllo li segnala finché sono uguali.
  */
-export function normalizza(r: Record<string, string>): LeadImportato | null {
+export function normalizza(r: Record<string, string>, scheda?: string): LeadImportato | null {
   if (eDiProva(r)) return null
 
   const id = senzaPrefisso(r.id ?? '')
@@ -201,6 +206,7 @@ export function normalizza(r: Record<string, string>): LeadImportato | null {
 
   const origine: Record<string, string> = {}
   const metti = (k: string, v: string | null) => { if (v) origine[k] = v }
+  metti('scheda', oppureNull(scheda))
   metti('piattaforma', oppureNull(r.platform))
   metti('campagna', oppureNull(r.campaign_name))
   metti('adset', oppureNull(r.adset_name))
@@ -212,15 +218,20 @@ export function normalizza(r: Record<string, string>): LeadImportato | null {
     return v ? leggibile(v) : null
   }
   metti('tipologia', chiedi('dicci_la_tipologia_della_tua_attività:'))
-  metti('fatturato_dichiarato', chiedi('qual_è_il_tuo_fatturato_annuo?'))
-  metti('tempistica', chiedi('quando_vuoi_partire_con_un_sistema_di_marketing_efficiente?'))
+  /* §494 — il modulo IA fa le stesse due domande con altre parole: finiscono
+     nelle stesse chiavi, così filtri e ordinamenti valgono per tutti e due */
+  metti('fatturato_dichiarato', chiedi('qual_è_il_tuo_fatturato_annuo?') ?? chiedi('qual_è_il_fatturato_annuo_indicativo_della_tua_azienda?'))
+  metti('tempistica', chiedi('quando_vuoi_partire_con_un_sistema_di_marketing_efficiente?') ?? chiedi('quando_vorresti_iniziare_a_migliorare_questi_aspetti?'))
+  metti('dipendenti', chiedi('-quante_persone_lavorano_nella_tua_azienda?'))
+  metti('difficolta', chiedi('qual_è_la_principale_difficoltà_che_vorresti_risolvere?'))
+  metti('budget', chiedi('quale_budget_valuteresti_per_un_progetto_di_ai_e_automazione?'))
 
   return {
     sheetRowId: id,
     companyName: nome,
-    // se l'azienda manca, la persona è già diventata il nome: non si ripete
-    contactName: azienda ? persona : null,
-    contactEmail: oppureNull(r.work_email),
+    contactName: persona,
+    // il Modulo 1 la chiama `work_email`, il modulo IA `email`
+    contactEmail: oppureNull(r.work_email) ?? oppureNull(r.email),
     contactPhone: oppureNull(r.phone_number) ? senzaPrefisso(r.phone_number) : null,
     stage: faseDaStatus(r.STATUS),
     sheetStatus: oppureNull(r.STATUS),
@@ -231,11 +242,11 @@ export function normalizza(r: Record<string, string>): LeadImportato | null {
 }
 
 /** il foglio intero: solo i lead veri, senza doppioni di id */
-export function leggiFoglio(csv: string): LeadImportato[] {
+export function leggiFoglio(csv: string, scheda?: string): LeadImportato[] {
   const visti = new Set<string>()
   const out: LeadImportato[] = []
   for (const r of conIntestazioni(leggiCsv(csv))) {
-    const lead = normalizza(r)
+    const lead = normalizza(r, scheda)
     if (!lead || visti.has(lead.sheetRowId)) continue
     visti.add(lead.sheetRowId)
     out.push(lead)
@@ -243,16 +254,45 @@ export function leggiFoglio(csv: string): LeadImportato[] {
   return out
 }
 
-export function analizzaFoglio(csv: string) {
+/**
+ * §494 — due livelli di colonne, perché i moduli Meta non sono uguali.
+ *
+ * Senza le **indispensabili** una riga non si riconosce o non si richiama, e
+ * il giro si ferma prima del database. Le **facoltative** il Modulo 1 le ha e
+ * il modulo IA no (l'azienda non la chiede, `Note` e `Follow up` non le ha
+ * aggiunte nessuno): pretenderle teneva fuori una scheda intera. Quelle che
+ * mancano si dicono in `assenti`, e il Controllo le mostra accanto alla scheda.
+ */
+const INDISPENSABILI = ['id', 'created_time', 'full_name', 'phone_number']
+const UNA_EMAIL = ['work_email', 'email']
+export const FACOLTATIVE = ['company_name', 'STATUS', 'Note', 'Follow up']
+
+export function analizzaFoglio(csv: string, scheda?: string) {
   const righe = leggiCsv(csv)
   const intestazioni = (righe[0] ?? []).map(h => h.trim())
-  const richieste = ['id', 'created_time', 'full_name', 'phone_number', 'work_email', 'company_name', 'STATUS', 'Note', 'Follow up']
-  const mancanti = richieste.filter(h => !intestazioni.includes(h))
+  const mancanti = INDISPENSABILI.filter(h => !intestazioni.includes(h))
+  if (!UNA_EMAIL.some(h => intestazioni.includes(h))) mancanti.push(UNA_EMAIL.join(' o '))
   if (mancanti.length) throw new Error(`Colonne mancanti nel foglio: ${mancanti.join(', ')}. Nessun lead importato.`)
   if (new Set(intestazioni).size !== intestazioni.length) throw new Error('Il foglio contiene intestazioni duplicate. Nessun lead importato.')
-  const lead = leggiFoglio(csv)
+  const lead = leggiFoglio(csv, scheda)
   const valide = conIntestazioni(righe).filter(r => normalizza(r) !== null).length
   const perFase: Record<string, number> = {}
   for (const l of lead) perFase[l.stage] = (perFase[l.stage] ?? 0) + 1
-  return { intestazioni, righe: righe.length - 1, lead, scartati: righe.length - 1 - valide, duplicati: valide - lead.length, perFase }
+  return {
+    intestazioni, righe: righe.length - 1, lead, scartati: righe.length - 1 - valide, duplicati: valide - lead.length, perFase,
+    assenti: FACOLTATIVE.filter(h => !intestazioni.includes(h)),
+  }
 }
+
+/**
+ * §494 — le voci della provenienza, con l'etichetta. Una lista sola per la
+ * scheda del lead e per l'export: erano due copie, e una chiave nuova
+ * aggiunta a una sola sarebbe comparsa nell'export e non nella scheda.
+ */
+export const VOCI_ORIGINE: [string, string][] = [
+  ['scheda', 'Scheda del foglio'], ['form', 'Modulo'],
+  ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'], ['annuncio', 'Annuncio'],
+  ['tipologia', 'Tipo di attività'], ['dipendenti', 'Persone in azienda'],
+  ['fatturato_dichiarato', 'Fatturato dichiarato'], ['budget', 'Budget dichiarato'],
+  ['difficolta', 'Cosa vuole risolvere'], ['tempistica', 'Quando vuole partire'],
+]

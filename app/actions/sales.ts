@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { giroFoglio } from '@/lib/sales-foglio-google'
+import { statoSchede } from '@/lib/sales-sync'
 import { requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
@@ -322,6 +323,22 @@ export async function aggiornaDaFoglio() {
   const esito = await giroFoglio(createAdminClient())
   refreshSales()
   return esito
+}
+
+/**
+ * §494 — il Controllo guarda anche il foglio: scheda per scheda, quanti lead
+ * ci sono e quanti sono entrati, e le schede che il giro non legge.
+ *
+ * Admin e manager, come «Aggiorna dal foglio»: la risposta sono solo conteggi
+ * ed etichette, ma la lettura passa dal service role, e la porta deve essere
+ * qui — non nel pannello che la chiama (§329).
+ */
+export async function statoFoglio() {
+  const { access } = await requireSalesAccess()
+  if (access !== 'admin' && access !== 'manager') {
+    throw new Error('Solo admin e manager possono controllare il foglio')
+  }
+  return statoSchede(createAdminClient())
 }
 
 // ── §377 · aggiungere un lead, a mano o da un CSV ───────────────────────────

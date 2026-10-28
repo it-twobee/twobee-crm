@@ -31,12 +31,8 @@ import type { PersonaCrm, RigaCrm } from './CrmTable'
 import { QrContatto } from './QrContatto'
 import { CrmTimeline, TimelineProvider, UltimoContatto } from './CrmTimeline'
 import type { Derivati } from '@/lib/sales-timeline'
+import { VOCI_ORIGINE } from '@/lib/sales-import'
 
-const ORIGINE: [string, string][] = [
-  ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'],
-  ['annuncio', 'Annuncio'], ['form', 'Modulo'], ['tipologia', 'Tipo di attività'],
-  ['fatturato_dichiarato', 'Fatturato dichiarato'], ['tempistica', 'Quando vuole partire'],
-]
 
 function Riquadro({ titolo, children }: { titolo: string; children: React.ReactNode }) {
   return (
@@ -160,7 +156,7 @@ export function CrmScheda({ riga, onChiudi, onSalva, onConverti, onElimina, pend
   const origine = (riga.lead_origine ?? {}) as Record<string, string>
   const extra = (riga.campi_extra ?? {}) as Record<string, unknown>
   const nostri = campiDaMostrare(CAMPI, extra)
-  const voci = ORIGINE.filter(([k]) => origine[k])
+  const voci = VOCI_ORIGINE.filter(([k]) => origine[k])
 
   /* §428 — tre domande a cui la scheda risponde prima di mostrare i campi:
      cosa fare adesso, cosa manca per la fase in cui sta, e cosa sappiamo già

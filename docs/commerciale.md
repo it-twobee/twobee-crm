@@ -396,7 +396,7 @@ perso**, e l'ha deciso chi il foglio lo compila.
 
 Configurazione: `SALES_SHEET_CSV_URL` (l'indirizzo **CSV** del foglio
 condiviso in lettura: `.../d/<ID>/export?format=csv&gid=<GID>`, non il link
-che si copia dalla barra), `SALES_SYNC_SECRET`, e un task pianificato
+che si copia dalla barra; dal §494 un elenco di schede, vedi sotto), `SALES_SYNC_SECRET`, e un task pianificato
 `0 3 * * *` su `POST /api/sales/sync`. Entrambe sono in
 `.env.local.example`. Seconda porta per gli admin, come le ricorrenze: chi
 aggiunge una riga al foglio deve poterla vedere adesso invece di scoprire
@@ -1015,6 +1015,65 @@ In cima alla scheda del lead, sopra la prossima azione, c'è il QR di una vCard
 nome e senza telefono o email il QR **non c'è** e la scheda lo dice: un codice
 di un contatto vuoto sembrerebbe valido. Bianco su nero fisso, non a token: in
 tema scuro un QR a colori non si legge. Gate: `npx tsx lib/sales-vcard.check.ts`.
+
+## Più schede, un modulo Meta per scheda — §494, `lib/sales-schede.ts`
+
+Meta scrive ogni modulo in una scheda sua dello stesso documento: «Modulo 1 -
+Lancio» (`gid=0`) è la prima campagna, «Modulo 2 - IA» (`gid=1863808156`)
+l'inserzione sull'intelligenza artificiale, e le sue due versioni successive —
+«Modulo 2 - IA (v2)» (`gid=568598458`) e «Modulo 2 - IA (v3)»
+(`gid=592216608`) — al 28 ottobre sono pronte e vuote. Il giro leggeva solo la
+`gid=0`: un lead del modulo IA arrivava sul foglio e nel tool no, **senza
+nessun errore**. Il primo è arrivato il 27 ottobre.
+
+**`SALES_SHEET_CSV_URL` è un elenco**: voci separate da `;` (o a capo), ognuna
+`Etichetta|indirizzo CSV`. Una voce sola senza etichetta è la configurazione
+di prima e vale ancora. In produzione:
+
+```
+Modulo 1 - Lancio|https://docs.google.com/spreadsheets/d/1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM/export?format=csv&gid=0; Modulo 2 - IA|https://docs.google.com/spreadsheets/d/1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM/export?format=csv&gid=1863808156; Modulo 2 - IA (v2)|https://docs.google.com/spreadsheets/d/1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM/export?format=csv&gid=568598458; Modulo 2 - IA (v3)|https://docs.google.com/spreadsheets/d/1JO5tPW_47VtyNsrDdbD7xy9V22T3dNa5UlqPVBhM8dM/export?format=csv&gid=592216608
+```
+
+- **In fila, e una scheda rotta non ferma le altre.** Il riepilogo somma e
+  dice scheda per scheda; `errore` c'è solo se non è passata nessuna. In fila
+  perché lo stesso id in due schede, in parallelo, cadrebbe sull'indice unico.
+- **Le colonne non sono le stesse.** Il modulo IA non chiede l'azienda, chiama
+  la mail `email` e non `work_email`, e non ha `Note` né `Follow up`; la v2
+  torna a `work_email` e perde `STATUS`, la v3 chiede di nuovo l'azienda. Le
+  indispensabili sono `id`, `created_time`, `full_name`, `phone_number` e una
+  delle due email; `company_name`, `STATUS`, `Note`, `Follow up` sono
+  facoltative, e quelle che mancano si dicono nel Controllo accanto alla scheda.
+- **La persona resta referente anche quando fa da azienda.** Senza azienda il
+  nome del lead è quello di chi ha compilato — e prima il referente restava
+  vuoto, quindi scrivere l'azienda vera cancellava la persona. Il Controllo li
+  segnala («L'azienda ha il nome della persona») finché i due nomi sono uguali.
+- **Le domande del modulo IA**: fatturato e tempistica finiscono nelle chiavi
+  di sempre (`fatturato_dichiarato`, `tempistica`), così filtri e ordinamenti
+  valgono per tutti e due; persone in azienda, difficoltà e budget in chiavi
+  loro (`dipendenti`, `difficolta`, `budget`). Il fatturato IA spezza la fascia
+  bassa in due: «fino a 250.000» ha rango 0,5, sotto «meno di 500k».
+- **La provenienza dice la scheda** (`lead_origine.scheda`, sui lead nuovi) e
+  si filtra per **Modulo** (`form`, che Meta scrive su tutti, anche i vecchi).
+  Le voci della provenienza sono una lista sola, `VOCI_ORIGINE`, per la scheda
+  del lead e per l'export.
+- **Il ritorno** scrive su ogni scheda letta, con gli stessi lead: ognuno
+  trova la sua riga per id. Le schede che l'ingresso non ha letto si saltano.
+
+**Il Controllo guarda anche il foglio** (`statoFoglio`, admin e manager): per
+ogni scheda quanti lead ci sono, quanti sono nel tool, quanti eliminati a mano
+e quanti **non ancora entrati** — il numero che deve fare zero —, la data
+dell'ultimo arrivato e le colonne assenti. Sotto, le **schede del documento che
+il giro non legge**, dalla pagina pubblica `htmlview` di Google: il giorno in cui
+Meta apre un modulo nuovo la scheda nasce sul foglio e nessuno pensa a Coolify.
+Quella pagina non è un'interfaccia documentata: se cambia forma il Controllo
+dice che non lo sa, non che è tutto a posto. Legge e basta: per far entrare i
+mancanti c'è «Aggiorna dal foglio».
+
+Prova a secco, tutte le schede: `npx tsx scripts/check-sales-sheet.ts "<valore
+della variabile>"`. Il 28 ottobre: 97 lead nel Modulo 1, 2 nel Modulo 2 - IA
+(più una prova di Meta), 0 nella v2 e nella v3. Gate: `npx tsx lib/sales-schede.check.ts`,
+più le prove sul modulo IA in `sales-import`, `sales-sync`, `sales-ads` e
+`sales-igiene`.
 
 ## Aperto
 

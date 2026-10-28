@@ -119,6 +119,9 @@ export const FILTRABILI: Filtrabile[] = [
   { campo: 'tipo_ads', etichetta: 'Ads', da: 'lead_origine', vuoto: SENZA_TIPO_ADS },
   { campo: 'piattaforma', etichetta: 'Piattaforma', da: 'lead_origine' },
   { campo: 'campagna', etichetta: 'Campagna', da: 'lead_origine' },
+  /* §494 — il modulo Meta: ogni inserzione ha il suo, e i lead del modulo IA
+     si cercano da qui */
+  { campo: 'form', etichetta: 'Modulo', da: 'lead_origine' },
   { campo: 'tipologia', etichetta: 'Tipo attività', da: 'lead_origine' },
   { campo: 'tempistica', etichetta: 'Quando vuole partire', da: 'lead_origine' },
 ]

@@ -36,6 +36,8 @@ export type RigaIgiene = {
   stage?: string | null
   created_at?: string | null
   last_interaction_at?: string | null
+  /** §494 — da quale modulo Meta è arrivato: serve a dire «due moduli» nei doppioni */
+  lead_origine?: Record<string, unknown> | null
 }
 
 /** quanto pesa: `grave` sono errori, `attenzione` sono cose da guardare */
@@ -154,6 +156,19 @@ export function controlla(
   const nomeDi = (id: string) =>
     righe.find(r => r.id === id)?.company_name || 'Senza nome'
   const out: Rilievo[] = []
+  /* §494 — il modulo da cui è arrivato. `form` prima di `scheda`: lo scrive
+     Meta su ogni lead, anche su quelli entrati prima che le schede fossero
+     più d'una, quindi la stessa campagna ha un nome solo. */
+  const moduloDi = (id: string) => {
+    const o = righe.find(r => r.id === id)?.lead_origine
+    const v = o?.form ?? o?.scheda
+    return typeof v === 'string' && v.trim() ? v.replace(/\s+/g, ' ').trim() : null
+  }
+  /* la stessa persona che compila due moduli: si dice, perché spiega il doppione */
+  const daModuli = (ids: string[]) => {
+    const m = Array.from(new Set(ids.map(moduloDi).filter(Boolean) as string[]))
+    return m.length > 1 ? ` · da ${m.length} moduli: ${m.join(', ')}` : ''
+  }
 
   const doppi = gruppiDoppioni(righe)
   if (doppi.length) {
@@ -167,8 +182,26 @@ export function controlla(
       gruppi: doppi.map(g => ({
         ids: g.ids,
         perche: `${g.ids.length} righe · ${g.motivi.map(m => SPIEGA[m]).join(', ')}`
-          + (g.certo ? '' : ' — solo il nome, potrebbero essere due aziende diverse'),
+          + (g.certo ? '' : ' — solo il nome, potrebbero essere due aziende diverse')
+          + daModuli(g.ids),
       })),
+    })
+  }
+
+  /* §494 — il modulo IA l'azienda non la chiede: il lead entra col nome della
+     persona in tutti e due i campi. Non è un errore dell'import, è un dato che
+     manca — e finché manca, i doppioni per nome non trovano l'azienda vera e
+     chi apre l'elenco legge un elenco di persone. */
+  const senzaAzienda = righe.filter(r => !chiusa(r.stage)
+    && !!nomeChiave(r.company_name) && nomeChiave(r.company_name) === nomeChiave(r.contact_name))
+  if (senzaAzienda.length) {
+    out.push({
+      chiave: 'azienda_da_completare',
+      titolo: 'L’azienda ha il nome della persona',
+      spiega: 'Il modulo non chiedeva l’azienda, e al suo posto c’è chi ha compilato. '
+        + 'Va scritta alla prima telefonata: il referente resta.',
+      peso: 'attenzione',
+      gruppi: senzaAzienda.map(r => ({ ids: [r.id], perche: `${nomeDi(r.id)}${moduloDi(r.id) ? ` · ${moduloDi(r.id)}` : ''}` })),
     })
   }
 

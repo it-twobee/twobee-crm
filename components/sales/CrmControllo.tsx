@@ -28,21 +28,23 @@
  * eliminare**: è quello che rende sicuro l'accorpamento.
  */
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { AlertTriangle, ArrowRight, CheckCircle2, Info, Merge, Star, Loader2 } from 'lucide-react'
+import { AlertTriangle, ArrowRight, CheckCircle2, FileSpreadsheet, Info, Merge, Star, Loader2 } from 'lucide-react'
 import {
   controlla, confronta, daPortareSu, type RigaIgiene, type RigaConfronto,
 } from '@/lib/sales-igiene'
-import { unisciLead } from '@/app/actions/sales'
+import { statoFoglio, unisciLead } from '@/app/actions/sales'
 import type { RigaCrm } from './CrmTable'
 import { useFasi } from './FasiContext'
 
-export function CrmControllo({ righe, onApri, onFatto }: {
+export function CrmControllo({ righe, onApri, onFatto, conFoglio = false }: {
   righe: RigaCrm[]
   onApri: (id: string) => void
   /** dopo un'unione le righe non sono più quelle: si ricarica */
   onFatto: () => void
+  /** §494 — admin e manager, la coppia di «Aggiorna dal foglio»: la porta vera è `statoFoglio` */
+  conFoglio?: boolean
 }) {
   const { TUTTE, classiFase, etichettaFase } = useFasi()
   const oggi = new Date().toISOString().slice(0, 10)
@@ -53,20 +55,24 @@ export function CrmControllo({ righe, onApri, onFatto }: {
 
   if (!rilievi.length) {
     return (
-      <div className="border border-border rounded-xl px-4 py-12 text-center">
-        <CheckCircle2 className="w-6 h-6 text-success mx-auto" aria-hidden />
-        <p className="text-sm font-semibold text-text-primary mt-2">Non c&apos;è niente da segnalare</p>
-        <p className="text-2xs text-text-tertiary mt-1 max-w-md mx-auto">
-          Nessun doppione, nessuna riga senza recapito, nessuna fase incoerente.
-          Il controllo tace quando l&apos;archivio è a posto: se dicesse sempre
-          qualcosa, dopo due giorni non lo aprirebbe più nessuno.
-        </p>
+      <div className="space-y-4">
+        {conFoglio && <IlFoglio />}
+        <div className="border border-border rounded-xl px-4 py-12 text-center">
+          <CheckCircle2 className="w-6 h-6 text-success mx-auto" aria-hidden />
+          <p className="text-sm font-semibold text-text-primary mt-2">Non c&apos;è niente da segnalare</p>
+          <p className="text-2xs text-text-tertiary mt-1 max-w-md mx-auto">
+            Nessun doppione, nessuna riga senza recapito, nessuna fase incoerente.
+            Il controllo tace quando l&apos;archivio è a posto: se dicesse sempre
+            qualcosa, dopo due giorni non lo aprirebbe più nessuno.
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
+      {conFoglio && <IlFoglio />}
       {rilievi.map(ril => {
         const grave = ril.peso === 'grave'
         return (
@@ -131,6 +137,102 @@ export function CrmControllo({ righe, onApri, onFatto }: {
         )
       })}
     </div>
+  )
+}
+
+/**
+ * §494 — il foglio, scheda per scheda.
+ *
+ * Gli altri controlli guardano le righe che sono **già** nel tool, e un lead
+ * che non è entrato non lo vede nessuno di loro. Qui si guarda dall'altra
+ * parte: per ogni scheda letta, quanti lead ci sono e quanti sono dentro; e
+ * nel documento, le schede che il giro non legge — il giorno in cui Meta apre
+ * un modulo nuovo la scheda nasce sul foglio, e nessuno pensa a Coolify.
+ *
+ * Si legge all'apertura del Controllo e basta: non inserisce niente, per far
+ * entrare c'è «Aggiorna dal foglio». Quando è tutto dentro resta una riga per
+ * scheda, senza rosso: anche questo pannello deve saper tacere.
+ */
+function IlFoglio() {
+  const [stato, setStato] = useState<Awaited<ReturnType<typeof statoFoglio>> | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
+  useEffect(() => {
+    statoFoglio().then(setStato).catch(e => setErrore((e as Error).message))
+  }, [])
+
+  if (errore) {
+    return <p className="text-2xs text-error border border-error/40 rounded-xl px-4 py-3">Il foglio non si è potuto controllare: {errore}</p>
+  }
+  if (!stato) {
+    return (
+      <p className="flex items-center gap-2 text-2xs text-text-tertiary border border-border rounded-xl px-4 py-3">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />Leggo le schede del foglio…
+      </p>
+    )
+  }
+
+  const grave = stato.schede.some(s => s.errore || s.mancanti > 0)
+  const nonLette = stato.nonLette ?? []
+  const giorno = (iso: string) => {
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
+  }
+
+  return (
+    <section className={`border rounded-xl overflow-hidden ${grave ? 'border-error/40' : 'border-border'}`}>
+      <header className={`flex items-start gap-2.5 px-4 py-3 border-b ${grave ? 'bg-error-dim border-error/30' : 'bg-surface border-border'}`}>
+        {grave
+          ? <AlertTriangle className="w-4 h-4 text-error shrink-0 mt-0.5" aria-hidden />
+          : nonLette.length
+            ? <Info className="w-4 h-4 text-warning shrink-0 mt-0.5" aria-hidden />
+            : <FileSpreadsheet className="w-4 h-4 text-text-tertiary shrink-0 mt-0.5" aria-hidden />}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-text-primary">Il foglio dei lead</h3>
+          <p className="text-2xs text-text-secondary mt-0.5">
+            {!stato.schede.length
+              ? 'Nessuna scheda configurata: SALES_SHEET_CSV_URL è vuota, e il giro non legge niente.'
+              : grave
+                ? 'Qualcosa sul foglio non è arrivato nel tool.'
+                : 'Ogni lead delle schede lette è nel tool.'}
+          </p>
+        </div>
+      </header>
+      <div className="divide-y divide-border">
+        {stato.schede.map(s => (
+          <div key={s.etichetta} className="px-4 py-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-sm font-semibold text-text-primary">{s.etichetta}</span>
+            {s.errore ? <span className="text-2xs text-error">{s.errore}</span> : (
+              <>
+                <span className="text-2xs text-text-secondary tabular">
+                  {s.lead} lead · {s.nelTool} nel tool{s.eliminati ? ` · ${s.eliminati} eliminati a mano` : ''}
+                </span>
+                {s.mancanti > 0 && (
+                  <span className="text-2xs font-semibold text-error">
+                    {s.mancanti} non ancora entrati: «Aggiorna dal foglio» li porta dentro
+                  </span>
+                )}
+                {s.ultimo && <span className="text-2xs text-text-tertiary">ultimo arrivato il {giorno(s.ultimo)}</span>}
+                {s.assenti.length > 0 && (
+                  <span className="text-2xs text-text-tertiary">senza le colonne {s.assenti.join(', ')}</span>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+        {nonLette.length > 0 && (
+          <p className="px-4 py-2.5 text-2xs text-text-secondary">
+            <span className="font-semibold text-warning">Schede che il giro non legge:</span>{' '}
+            {nonLette.map(t => `«${t.nome}»`).join(', ')}. Se raccolgono i lead di un modulo Meta,
+            vanno aggiunte a SALES_SHEET_CSV_URL in Coolify.
+          </p>
+        )}
+        {stato.nonLette === null && stato.schede.length > 0 && (
+          <p className="px-4 py-2.5 text-2xs text-text-tertiary">
+            L&apos;elenco delle schede del documento non si è potuto leggere: se ne è nata una nuova, da qui non si vede.
+          </p>
+        )}
+      </div>
+    </section>
   )
 }
 

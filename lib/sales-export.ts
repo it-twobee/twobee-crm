@@ -17,6 +17,7 @@ import { etichettaFase, type Fase } from './sales-stages'
 import { etichettaScelta, type Scelte } from './sales-scelte'
 import type { Campo } from './sales-campi'
 import { giornoOraRoma, titoloVoce, type Direzione, type StatoVoce, type TipoVoce } from './sales-timeline'
+import { VOCI_ORIGINE } from './sales-import'
 
 export const TIPI_EXPORT = ['lead', 'contatti'] as const
 export type TipoExport = typeof TIPI_EXPORT[number]
@@ -48,11 +49,6 @@ export type VoceExport = {
 
 type Deal = Record<string, unknown> & { id: string; owners?: string[] }
 
-const ORIGINE: [string, string][] = [
-  ['piattaforma', 'Piattaforma'], ['campagna', 'Campagna'], ['adset', 'Adset'], ['annuncio', 'Annuncio'],
-  ['form', 'Modulo'], ['tipologia', 'Tipo di attività'], ['fatturato_dichiarato', 'Fatturato dichiarato'],
-  ['tempistica', 'Quando vuole partire'],
-]
 
 const testo = (v: unknown) => v === null || v === undefined ? '' : String(v)
 const euro = (n: number) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
@@ -86,7 +82,7 @@ export function tabellaLead(deals: Deal[], ctx: Contesto, voci?: Map<string, Voc
     const x = (d.campi_extra as Record<string, unknown> | null)?.[c.chiave]
     return x !== undefined && x !== null && x !== ''
   }) || c.attivo)
-  const origine = ORIGINE.filter(([k]) => deals.some(d => (d.lead_origine as Record<string, unknown> | null)?.[k]))
+  const origine = VOCI_ORIGINE.filter(([k]) => deals.some(d => (d.lead_origine as Record<string, unknown> | null)?.[k]))
   const intestazioni = [
     ...COLONNE.map(c => c.etichetta),
     'Prossimo follow-up',

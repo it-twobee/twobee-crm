@@ -41,9 +41,14 @@ export function tipiAds(o: Origine): TipoAds[] {
  */
 const FASCE: { rango: number; corta: string; vale: RegExp }[] = [
   { rango: 4, corta: 'oltre 5 M€', vale: /oltre\s*5/i },
-  { rango: 3, corta: '1–5 M€', vale: /^1\s*m.*5\s*m/i },
-  { rango: 2, corta: '500k–1 M€', vale: /500\.?000.*1\s*m/i },
+  { rango: 3, corta: '1–5 M€', vale: /^1\s*m.*5\s*m|^1\.000\.000.*5\.000\.000/i },
+  { rango: 2, corta: '500k–1 M€', vale: /500\.?000.*1\s*m|^500\.000.*1\.000\.000/i },
   { rango: 1, corta: '< 500k', vale: /meno\s+di\s*500/i },
+  /* §494 — il modulo IA spezza la fascia più bassa in due. Il rango resta
+     quello di «meno di 500k» per la più alta delle due, e la più bassa sta
+     sotto: ordinando, un «fino a 250.000» non deve passare davanti a nessuno */
+  { rango: 1, corta: '250–500k', vale: /^250\.000.*500\.000/i },
+  { rango: 0.5, corta: '< 250k', vale: /^fino\s+a\s*250/i },
 ]
 
 export function fatturatoDichiarato(o: Origine): { rango: number; corta: string } | null {

@@ -316,6 +316,11 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
         /* §378 — si dice solo quando ce ne sono: uno «0 eliminati» fisso in
            coda insegna a non leggere la riga. */
         ...(e.ignorati ? [`${e.ignorati} eliminati a mano, non rientrano`] : []),
+        /* §494 — con più schede si dice da dove sono arrivati i nuovi, e
+           quale scheda non si è letta: le altre sono entrate lo stesso */
+        ...(e.schede.length > 1
+          ? e.schede.map(s => s.errore ? `${s.etichetta} non letta: ${s.errore}` : `${s.etichetta}: ${s.nuovi} nuovi`)
+          : []),
         /* §434 — il ritorno si dice sempre, anche quando non è configurato:
            chi preme il bottone deve sapere se il foglio adesso è allineato. */
         ...(e.ritorno ? ['errore' in e.ritorno
@@ -323,6 +328,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
           : e.ritorno.scritte
             ? `sul foglio ${e.ritorno.scritte} celle aggiornate${e.ritorno.nuoveColonne.length ? ` e ${e.ritorno.nuoveColonne.length} colonne OS aggiunte` : ''}`
             : 'sul foglio era già tutto allineato'] : []),
+        ...(e.ritorno && !('errore' in e.ritorno) ? (e.ritorno.avvisi ?? []).map(a => `non scritto: ${a}`) : []),
       ].join(' · '))
       /* Si ricarica sempre: il giro automatico può aver già importato il lead,
          e `righe` è uno stato iniziale — senza ricarico la pagina aperta
@@ -599,7 +605,7 @@ export function CrmTable({ righe: iniziali, puoiEliminare = false, persone = [],
            filtrate: un doppione che sta fuori dalla ricerca è un doppione
            che resta. */
         <CrmControllo righe={righe} onApri={id => { setVista('tabella'); setApertaId(id) }}
-          onFatto={() => location.reload()} />
+          onFatto={() => location.reload()} conFoglio={puoiEliminare} />
       ) : (
         /* §374 — elenco a sinistra, scheda a destra. Prima era una tabella da
            ventitré colonne che scorreva di lato: fedele a Notion e inutile per

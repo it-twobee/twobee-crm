@@ -1,5 +1,15 @@
 # Dove siamo
 
+## I lead del modulo IA entrano — §494, 2026-10-28
+
+Il foglio dei lead Meta ha una scheda per modulo, e il giro leggeva solo la
+prima: i lead dell'inserzione IA («Modulo 2 - IA», dal 27 ottobre) restavano
+sul foglio. Ora `SALES_SHEET_CSV_URL` è un elenco di schede, il modulo IA si
+legge con le sue colonne (niente azienda, `email` al posto di `work_email`), e
+il Controllo dice scheda per scheda se ogni lead è entrato e se nel documento
+c'è una scheda che il giro non legge. **Da fare in Coolify**: la variabile con
+le quattro schede (valore in `docs/commerciale.md`). Dettaglio lì.
+
 ## Senza login non si tocca niente — §492, 2026-10-21
 
 Controllo di sicurezza sugli avvisi del linter di Supabase. Con la sola chiave
@@ -642,7 +652,7 @@ una domanda che si fa ogni giorno.
 ## Il numero del paragrafo si prende alla fine — §406, 2026-09-22
 
 Su `main` spingono tre sessioni in parallelo, su sezioni diverse. Ognuna sceglie
-il prossimo `§NNN` leggendo il repository, e nessuna vede il lavoro non ancora
+il prossimo `§494` leggendo il repository, e nessuna vede il lavoro non ancora
 spinto delle altre: in una giornata sono uscite **sei collisioni**, tutte
 scoperte al push, tutte rinumerate a mano.
 

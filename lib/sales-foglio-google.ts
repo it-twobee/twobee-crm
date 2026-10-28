@@ -2,8 +2,9 @@ import 'server-only'
 import { google } from 'googleapis'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { URL_FOGLIO, sincronizzaLead } from './sales-sync'
-import { pianoRitorno, rif } from './sales-foglio-ritorno'
+import { pianoRitorno, rif, type LeadRitorno } from './sales-foglio-ritorno'
 import { fasiVere, leadDelTool } from './sales-foglio-dati'
+import { schedeDa, type Scheda } from './sales-schede'
 
 /**
  * §434 — il ritorno sul foglio, la parte che parla con Google.
@@ -16,20 +17,14 @@ import { fasiVere, leadDelTool } from './sales-foglio-dati'
  *
  * Il foglio si trova dallo stesso `SALES_SHEET_CSV_URL` dell'ingresso — id e
  * `gid` — così le due direzioni non possono puntare a due fogli diversi.
+ * §494 — e le schede sono le stesse: ognuna riceve le colonne OS dei suoi lead.
  *
  * Senza chiave il ritorno **non parte e lo dice**: l'ingresso continua uguale,
  * e il riepilogo scrive che il ritorno non è configurato invece di tacere.
  */
 
-export type EsitoRitorno = { scritte: number; righe: number; nuoveColonne: string[] } | { errore: string }
-
-/** `…/d/<ID>/export?format=csv&gid=<GID>` → id e gid */
-export function foglioDaUrl(url: string): { id: string; gid: number } | null {
-  const id = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/)?.[1]
-  if (!id) return null
-  const gid = Number(url.match(/[?&#]gid=(\d+)/)?.[1] ?? 0)
-  return { id, gid: Number.isFinite(gid) ? gid : 0 }
-}
+/** §494 — `avvisi`: le schede che non si sono scritte mentre le altre sì */
+export type EsitoRitorno = { scritte: number; righe: number; nuoveColonne: string[]; avvisi?: string[] } | { errore: string }
 
 function credenziali(): { client_email: string; private_key: string } | null {
   const grezzo = process.env.GOOGLE_SHEETS_SA_JSON
@@ -40,31 +35,52 @@ function credenziali(): { client_email: string; private_key: string } | null {
   } catch { return null }
 }
 
-export async function scriviRitorno(admin: SupabaseClient, url = URL_FOGLIO): Promise<EsitoRitorno> {
+export async function scriviRitorno(admin: SupabaseClient, config = URL_FOGLIO, soloLe?: string[]): Promise<EsitoRitorno> {
   const cred = credenziali()
   if (!cred) return { errore: 'ritorno sul foglio non configurato (manca GOOGLE_SHEETS_SA_JSON)' }
-  const dove = foglioDaUrl(url)
-  if (!dove) return { errore: 'SALES_SHEET_CSV_URL non dice quale foglio: serve il link …/spreadsheets/d/<ID>/…' }
+  const schede = schedeDa(config).filter(s => !soloLe || soloLe.includes(s.etichetta))
+  if (!schede.length) return { scritte: 0, righe: 0, nuoveColonne: [] }
 
   const auth = new google.auth.JWT({ email: cred.client_email, key: cred.private_key, scopes: ['https://www.googleapis.com/auth/spreadsheets'] })
   const sheets = google.sheets({ version: 'v4', auth })
+  /* I lead si leggono una volta per tutte le schede: ognuna abbina i suoi per
+     id, e un lead che sta in un'altra scheda semplicemente non trova la riga. */
+  const lead = await leadDelTool(admin, await fasiVere(admin))
+
+  const totale = { scritte: 0, righe: 0, nuoveColonne: [] as string[] }
+  const errori: string[] = []
+  for (const s of schede) {
+    const e = await scriviScheda(sheets, s, lead, cred.client_email)
+    if ('errore' in e) { errori.push(schede.length > 1 ? `${s.etichetta}: ${e.errore}` : e.errore); continue }
+    totale.scritte += e.scritte; totale.righe += e.righe
+    totale.nuoveColonne = Array.from(new Set([...totale.nuoveColonne, ...e.nuoveColonne]))
+  }
+  if (errori.length === schede.length) return { errore: errori.join(' · ') }
+  return errori.length ? { ...totale, avvisi: errori } : totale
+}
+
+async function scriviScheda(
+  sheets: ReturnType<typeof google.sheets>, scheda: Scheda, lead: LeadRitorno[], email: string,
+): Promise<EsitoRitorno> {
+  const dove = scheda.foglio
+  if (!dove) return { errore: 'SALES_SHEET_CSV_URL non dice quale foglio: serve il link …/spreadsheets/d/<ID>/…' }
   try {
     const meta = await sheets.spreadsheets.get({ spreadsheetId: dove.id, fields: 'sheets.properties' })
-    const scheda = meta.data.sheets?.find(s => (s.properties?.sheetId ?? 0) === dove.gid)?.properties
-    if (!scheda?.title) return { errore: `Nel foglio non c'è la scheda con gid ${dove.gid}` }
+    const foglio = meta.data.sheets?.find(s => (s.properties?.sheetId ?? 0) === dove.gid)?.properties
+    if (!foglio?.title) return { errore: `Nel foglio non c'è la scheda con gid ${dove.gid}` }
 
     const letti = await sheets.spreadsheets.values.get({
-      spreadsheetId: dove.id, range: `'${scheda.title.replace(/'/g, "''")}'`, valueRenderOption: 'FORMATTED_VALUE',
+      spreadsheetId: dove.id, range: `'${foglio.title.replace(/'/g, "''")}'`, valueRenderOption: 'FORMATTED_VALUE',
     })
     const valori = ((letti.data.values ?? []) as unknown[][]).map(r => r.map(v => String(v ?? '')))
-    const piano = pianoRitorno(valori, await leadDelTool(admin, await fasiVere(admin)))
+    const piano = pianoRitorno(valori, lead)
     if (!piano.celle.length) return { scritte: 0, righe: piano.abbinate, nuoveColonne: [] }
 
     /* Un foglio nasce con 26 colonne e quello dei lead ne usa già 24: le
        colonne nuove cadrebbero fuori dalla griglia, e l'API rifiuta la
        scrittura invece di allargarla. */
     const serve = Math.max(...piano.celle.map(c => c.colonna)) + 1
-    const ha = scheda.gridProperties?.columnCount ?? 0
+    const ha = foglio.gridProperties?.columnCount ?? 0
     if (serve > ha) {
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: dove.id,
@@ -78,13 +94,13 @@ export async function scriviRitorno(admin: SupabaseClient, url = URL_FOGLIO): Pr
       spreadsheetId: dove.id,
       requestBody: {
         valueInputOption: 'RAW',
-        data: piano.celle.map(c => ({ range: rif(scheda.title!, c), values: [[c.valore]] })),
+        data: piano.celle.map(c => ({ range: rif(foglio.title!, c), values: [[c.valore]] })),
       },
     })
     return { scritte: piano.celle.length, righe: piano.abbinate, nuoveColonne: piano.nuoveColonne }
   } catch (e) {
     const codice = (e as { code?: number }).code
-    if (codice === 403) return { errore: `Il foglio non è condiviso con ${cred.client_email} come Editor` }
+    if (codice === 403) return { errore: `Il foglio non è condiviso con ${email} come Editor` }
     if (codice === 404) return { errore: 'Il foglio non si trova: controlla SALES_SHEET_CSV_URL' }
     return { errore: e instanceof Error ? e.message : 'Scrittura sul foglio fallita' }
   }
@@ -103,5 +119,8 @@ export async function scriviRitorno(admin: SupabaseClient, url = URL_FOGLIO): Pr
 export async function giroFoglio(admin: SupabaseClient) {
   const ingresso = await sincronizzaLead(admin)
   if (ingresso.errore) return { ...ingresso, ritorno: null as EsitoRitorno | null }
-  return { ...ingresso, ritorno: await scriviRitorno(admin) }
+  /* §494 — si scrive solo sulle schede che si sono lette: una scheda con le
+     intestazioni sbagliate è una scheda su cui non si sa cosa si troverebbe */
+  const lette = ingresso.schede.filter(s => !s.errore).map(s => s.etichetta)
+  return { ...ingresso, ritorno: await scriviRitorno(admin, URL_FOGLIO, lette) as EsitoRitorno | null }
 }
