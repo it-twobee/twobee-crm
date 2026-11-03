@@ -27,10 +27,18 @@ gli altri: ognuno raccoglie le sue e le carica.
 3. **La regola del mese** (decisione del committente, 16 ottobre 2026): contano
    i post **pubblicati nel mese** (ora di Roma), con i numeri dell'ultimo
    caricamento **fatto entro la fine del mese**. Un post di settembre che prende
-   like a ottobre non conta per ottobre. La regola sta in `leggiCsvSfida`, che
-   accetta solo i post del mese in corso: un mese chiuso non si aggiorna più
-   perché nessuno lo può più scrivere, e chi carica il 5 novembre non si porta
-   dietro i like dei primi di novembre.
+   like a ottobre non conta per ottobre. La regola sta in `leggiCsvSfida`.
+4. **Il mese finito si carica fino al 7** (§497, 3 novembre 2026). Con la
+   regola di prima `leggiCsvSfida` accettava solo il mese in corso: il 3
+   novembre Gabriele (fermo al 26 ottobre) e Marco (mai caricato) non
+   potevano più mettere ottobre, e l'estensione il CSV giusto lo produceva.
+   Adesso `mesiAperti` accetta anche il mese prima fino al giorno
+   `GIORNI_PROROGA` (7, ora di Roma); dopo il mese è chiuso e nessuno lo
+   scrive più. Il prezzo è dichiarato nelle regole della pagina: chi carica
+   ottobre il 5 novembre si porta dietro i like presi dal 1° al 5. Si è
+   scelto così perché lasciare fuori un collega dalla classifica sbaglia di
+   più di qualche like in più. Nei giorni di proroga la pagina del mese finito
+   dice «Ultimi caricamenti» e «Carichi fino al 7 nov.», non «Sfida chiusa».
 
 ## La data del post viene dall'ID
 LinkedIn nella pagina scrive «3 sett.», non una data. L'URN invece è esatto: i
@@ -41,9 +49,10 @@ stesso mese sugli stessi URN, confini del mese e cambio d'ora compresi.
 
 ## Cosa legge l'estensione
 L'icona apre una **finestrella** (`popup.html`) con «Dal» e «Al», giorni di
-Roma, di default dal 1° del mese a oggi. Se il «dal» cade prima del mese la
-finestrella avvisa: l'OS ignora quei post, la sfida conta solo il mese in
-corso. `background.js` porta la scheda su «Attività → Post»
+Roma, di default dal 1° del mese a oggi. Se il «dal» cade prima dei mesi
+aperti la finestrella avvisa che l'OS ignora quei post. Fino al 7 avvisa
+soltanto che il mese scorso si carica ancora (`popup.js` ha la sua copia del 7,
+perché non può importare TypeScript). `background.js` porta la scheda su «Attività → Post»
 (`/in/me/recent-activity/shares/`), passa l'intervallo alla pagina e inietta
 `raccolta.js`:
 - **i tuoi post** sono quelli con l'ingresso alle analisi (`a[href*="/analytics/"]`,

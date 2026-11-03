@@ -3,11 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { getSessionProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { leggiCsvSfida, meseCorrente } from '@/lib/linkedin'
+import { leggiCsvSfida } from '@/lib/linkedin'
 
 export type EsitoCaricamento =
   | { ok: false; error: string }
-  | { ok: true; aggiornati: number; fuoriMese: number; altrui: number; scartate: string[]; mese: string }
+  | { ok: true; aggiornati: number; fuoriMese: number; altrui: number; scartate: string[]; mesi: string[] }
 
 /** La sfida è dello staff: il portale cliente non carica e non legge. */
 async function requireMembroSfida() {
@@ -28,9 +28,8 @@ export async function caricaCsvLinkedin(testo: string): Promise<EsitoCaricamento
   const ora = new Date()
   const letto = leggiCsvSfida(testo, ora)
   if (!letto.ok) return { ok: false, error: letto.errore }
-  const mese = meseCorrente(ora)
-  const base = { fuoriMese: letto.fuoriMese, scartate: letto.scartate, mese }
-  if (letto.righe.length === 0) return { ok: true, aggiornati: 0, altrui: 0, ...base }
+  const base = { fuoriMese: letto.fuoriMese, scartate: letto.scartate }
+  if (letto.righe.length === 0) return { ok: true, aggiornati: 0, altrui: 0, mesi: [], ...base }
 
   const db = createAdminClient()
   const { data: esistenti, error } = await db.from('linkedin_posts')
@@ -51,5 +50,6 @@ export async function caricaCsvLinkedin(testo: string): Promise<EsitoCaricamento
   }
   revalidatePath('/linkedin')
   revalidatePath('/workspace/linkedin')
-  return { ok: true, aggiornati: daScrivere.length, altrui: altrui.size, ...base }
+  const mesi = Array.from(new Set(daScrivere.map(r => r.mese))).sort().reverse()
+  return { ok: true, aggiornati: daScrivere.length, altrui: altrui.size, mesi, ...base }
 }

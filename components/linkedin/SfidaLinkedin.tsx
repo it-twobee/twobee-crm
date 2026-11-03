@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { ChevronDown, ChevronLeft, ChevronRight, Crown, Download, ExternalLink, Flame, Hourglass, Upload, Users } from 'lucide-react'
 import { caricaCsvLinkedin } from '@/app/actions/linkedin'
 import {
-  classifica, ordinaPost, distacco, giorniAllaChiusura, ultimoGiorno, MAX_CARATTERI,
+  classifica, ordinaPost, distacco, giorniAllaChiusura, prorogaFino, chiusuraCaricamenti, GIORNI_PROROGA, MAX_CARATTERI,
   type Criterio, type RigaClassifica,
 } from '@/lib/linkedin'
 import type { SfidaData } from '@/lib/linkedin-server'
@@ -31,6 +31,7 @@ const ORDINE_PODIO = [1, 0, 2]
 // `always`: in italiano il CLDR non raggruppa le quattro cifre, e «7400» accanto a «23.900» sembra un altro numero
 const num = (n: number) => n.toLocaleString('it-IT', { useGrouping: 'always' } as Intl.NumberFormatOptions)
 const giorno = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
+const nomeMese = (mese: string) => new Date(`${mese}-15T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', timeZone: 'Europe/Rome' })
 const quando = (iso: string) => new Date(iso).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })
 const nome = (autore: string) => autore.split(' ')[0] || autore
 
@@ -61,7 +62,8 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
   const posts = useMemo(() => ordinaPost(data.posts, metrica), [data.posts, metrica])
   const unita = METRICHE.find(x => x.key === metrica)!.unita
   const giorni = giorniAllaChiusura(data.mese, data.oggi)
-  const chiuso = giorni === null
+  const proroga = prorogaFino(data.mese, data.oggi)
+  const chiuso = giorni === null && !proroga
   const io = righe.findIndex(r => r.profile_id === me)
   const max = righe.length ? Math.max(1, righe[0][metrica]) : 1
   const postDelMese = posts[0]
@@ -83,7 +85,8 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
         esito.altrui ? `${esito.altrui} già caricati da un collega` : '',
         esito.scartate.length ? `${esito.scartate.length} righe scartate` : '',
       ].filter(Boolean).join(' · ')
-      toast.success(`${esito.aggiornati} post di ${data.etichettaCorrente} aggiornati`, {
+      const di = esito.mesi.length ? esito.mesi.map(nomeMese).join(' e ') : data.etichettaCorrente
+      toast.success(`${esito.aggiornati} post di ${di} aggiornati`, {
         description: [note, ...esito.scartate.slice(0, 3)].filter(Boolean).join('\n') || undefined,
       })
       router.refresh()
@@ -153,7 +156,7 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
       <section aria-labelledby="sfida-titolo" className="relative overflow-hidden rounded-2xl border border-border bg-surface p-5 sm:p-7"
         style={{ backgroundImage: 'radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--color-gold) 16%, transparent), transparent 55%)' }}>
         <p className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-gold-text">
-          <Flame className="h-4 w-4" aria-hidden="true" /> {chiuso ? 'Sfida chiusa' : 'Sfida in corso'} · <span className="capitalize">{data.etichetta}</span>
+          <Flame className="h-4 w-4" aria-hidden="true" /> {chiuso ? 'Sfida chiusa' : proroga ? 'Ultimi caricamenti' : 'Sfida in corso'} · <span className="capitalize">{data.etichetta}</span>
         </p>
         <h2 id="sfida-titolo" className="mt-2 font-heading text-2xl font-bold text-text-primary sm:text-3xl">{titolo}</h2>
         <p className="mt-1 text-sm text-text-secondary">{sottotitolo}</p>
@@ -162,7 +165,8 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
           <div className="rounded-xl bg-surface-hover px-4 py-3">
             <dt className="flex items-center gap-1.5 text-2xs text-text-tertiary"><Hourglass className="h-3.5 w-3.5" aria-hidden="true" /> Chiusura</dt>
             <dd className="mt-1 font-heading text-xl font-bold text-text-primary">
-              {chiuso ? `Chiusa il ${giorno(`${ultimoGiorno(data.mese)}T12:00:00Z`)}` : giorni === 0 ? 'Ultimo giorno' : `${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}`}
+              {proroga ? `Carichi fino al ${giorno(`${proroga}T12:00:00Z`)}`
+                : chiuso ? `Chiusa il ${giorno(`${chiusuraCaricamenti(data.mese)}T12:00:00Z`)}` : giorni === 0 ? 'Ultimo giorno' : `${giorni} ${giorni === 1 ? 'giorno' : 'giorni'}`}
             </dd>
           </div>
           <div className="rounded-xl bg-surface-hover px-4 py-3">
@@ -323,8 +327,8 @@ export function SfidaLinkedin({ data, me, base }: { data: SfidaData; me: string;
       <details className="rounded-2xl border border-border bg-surface px-5 py-3 text-sm text-text-secondary">
         <summary className="cursor-pointer font-medium text-text-primary">Regole e come si partecipa</summary>
         <p className="mt-3">
-          Contano i post pubblicati nel mese, ora di Roma. Fino all&apos;ultimo giorno ogni caricamento aggiorna i numeri, poi la classifica si chiude:
-          carica il CSV anche il {giorno(`${ultimoGiorno(data.mese)}T12:00:00Z`)}, o restano quelli dell&apos;ultima volta.
+          Contano i post pubblicati nel mese, ora di Roma. Ogni caricamento aggiorna i numeri fino al {giorno(`${chiusuraCaricamenti(data.mese)}T12:00:00Z`)}:
+          nei primi {GIORNI_PROROGA} giorni del mese dopo si caricano ancora i post del mese finito, poi la classifica si chiude con i numeri dell&apos;ultima volta.
         </p>
         <ol className="mt-3 list-decimal space-y-1.5 pl-5">
           <li>Scarica l&apos;estensione e decomprimi lo zip: ottieni la cartella <code>twobee-sfida-linkedin</code>.</li>

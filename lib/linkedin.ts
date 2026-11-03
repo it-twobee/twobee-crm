@@ -37,6 +37,31 @@ export function meseRoma(ms: number): string {
 
 export const meseCorrente = (ora = new Date()) => meseRoma(ora.getTime())
 
+/** §497 — I giorni del mese nuovo in cui il mese appena chiuso accetta ancora caricamenti. */
+export const GIORNI_PROROGA = 7
+
+const meseVicino = (mese: string, n: number) => {
+  const [a, m] = mese.split('-').map(Number)
+  return new Date(Date.UTC(a, m - 1 + n, 1)).toISOString().slice(0, 7)
+}
+
+/** L'ultimo giorno in cui un mese accetta caricamenti: il 7 del mese dopo. */
+export const chiusuraCaricamenti = (mese: string) => `${meseVicino(mese, 1)}-${String(GIORNI_PROROGA).padStart(2, '0')}`
+
+/** Il mese è finito ma si carica ancora: il giorno della chiusura, altrimenti `null`. */
+export function prorogaFino(mese: string, oggi: string): string | null {
+  const fino = chiusuraCaricamenti(mese)
+  return oggi.slice(0, 7) > mese && oggi <= fino ? fino : null
+}
+
+/** I mesi in cui un caricamento entra: quello in corso e, fino al 7, quello prima. */
+export function mesiAperti(ora = new Date()): string[] {
+  const oggi = giornoRoma(ora)
+  const corrente = oggi.slice(0, 7)
+  const prima = meseVicino(corrente, -1)
+  return prorogaFino(prima, oggi) ? [corrente, prima] : [corrente]
+}
+
 /** RFC 4180: virgolette, virgole e a capo dentro il testo del post. */
 export function parseCsv(testo: string): string[][] {
   const righe: string[][] = []
@@ -89,9 +114,9 @@ function intero(v: string | undefined): number | null | 'errore' {
 
 /**
  * La regola del mese sta qui, ed è l'unica porta della scrittura: entrano
- * solo i post **pubblicati nel mese in corso** (ora di Roma). Un mese chiuso
- * non si aggiorna più — la classifica di ottobre è quella del 31 ottobre, e
- * chi carica il 5 novembre non si porta dietro i like dei primi di novembre.
+ * i post **pubblicati nel mese in corso** (ora di Roma) e, fino al 7 del mese
+ * dopo, quelli del mese appena finito — chi non ha caricato il 31 non resta
+ * fuori. Dopo il 7 il mese è chiuso e non si aggiorna più.
  */
 export function leggiCsvSfida(testo: string, ora = new Date()): LetturaCsv {
   if (testo.length > MAX_CARATTERI) return { ok: false, errore: 'Il file è troppo grande: non è il CSV dell\'estensione.' }
@@ -106,7 +131,7 @@ export function leggiCsvSfida(testo: string, ora = new Date()): LetturaCsv {
     const i = intest.indexOf(nome)
     return i < 0 ? undefined : r[i]
   }
-  const mese = meseCorrente(ora)
+  const aperti = mesiAperti(ora)
   const perUrn = new Map<string, RigaPost>()
   const scartate: string[] = []
   let fuoriMese = 0
@@ -125,7 +150,7 @@ export function leggiCsvSfida(testo: string, ora = new Date()): LetturaCsv {
     }
     if (reazioni === null || commenti === null) { scartate.push(`riga ${n}: mancano reazioni o commenti`); return }
     const suo = meseRoma(ms)
-    if (suo !== mese) { fuoriMese++; return }
+    if (!aperti.includes(suo)) { fuoriMese++; return }
     const url = (col(r, 'url') ?? '').trim()
     perUrn.set(urn, {
       post_urn: urn,

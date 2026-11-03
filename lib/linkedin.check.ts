@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { msDaUrn, meseRoma, meseCorrente, parseCsv, leggiCsvSfida, classifica, ordinaPost, distacco, giorniAllaChiusura, ultimoGiorno, giornoRoma, COLONNE, type PostSfida } from '@/lib/linkedin'
+import { msDaUrn, meseRoma, meseCorrente, parseCsv, leggiCsvSfida, classifica, ordinaPost, distacco, giorniAllaChiusura, ultimoGiorno, giornoRoma, mesiAperti, prorogaFino, chiusuraCaricamenti, COLONNE, type PostSfida } from '@/lib/linkedin'
 import { crc32, zipStore } from '@/lib/zip-store'
 
 let fail = 0
@@ -153,6 +153,28 @@ console.log('\n— La classifica —')
   is('il primo vede il vantaggio sul secondo', distacco(imp, 0, 'impression'), { tipo: 'vantaggio', su: 'Bruno', di: 600 })
   is('il secondo vede quanto manca per il sorpasso', distacco(imp, 1, 'impression'), { tipo: 'insegue', chi: 'Anna', di: 601 })
   is('da soli non c\'è distacco', distacco(imp.slice(0, 1), 0, 'impression'), { tipo: 'solo' })
+}
+
+console.log('\n— Il mese finito si carica fino al 7 —')
+{
+  const ott = urnAlle('2026-10-20T08:00:00Z')
+  const nov = urnAlle('2026-11-02T08:00:00Z')
+  const set = urnAlle('2026-09-20T08:00:00Z')
+  const csv = est.csvDi([ott, nov, set].map(u => ({ post_urn: u, url: '', reazioni: 1, commenti: 0, diffusioni: 0, impression: 10, testo: '' })))
+  const il3 = leggiCsvSfida(csv, new Date('2026-11-03T10:00:00Z'))
+  is('il 3 novembre entrano ottobre e novembre', il3.ok && il3.righe.map(r => r.mese).sort(), ['2026-10', '2026-11'])
+  is('il 3 novembre settembre resta fuori', il3.ok && il3.fuoriMese, 1)
+  const il7 = leggiCsvSfida(csv, new Date('2026-11-07T22:30:00Z'))
+  is('alle 23:30 del 7 a Roma ottobre entra ancora', il7.ok && il7.righe.map(r => r.mese).sort(), ['2026-10', '2026-11'])
+  const l8 = leggiCsvSfida(csv, new Date('2026-11-07T23:30:00Z'))
+  is('alle 00:30 dell\'8 a Roma ottobre è chiuso', l8.ok && l8.righe.map(r => r.mese), ['2026-11'])
+  is('a gennaio il mese prima è dicembre dell\'anno prima', mesiAperti(new Date('2027-01-05T10:00:00Z')), ['2027-01', '2026-12'])
+  is('il 16 del mese è aperto solo quello', mesiAperti(new Date('2026-10-16T10:00:00Z')), ['2026-10'])
+  is('ottobre, il 3 novembre: si carica fino al 7', prorogaFino('2026-10', '2026-11-03'), '2026-11-07')
+  is('ottobre, l\'8 novembre: chiuso', prorogaFino('2026-10', '2026-11-08'), null)
+  is('il mese in corso non è in proroga', prorogaFino('2026-11', '2026-11-03'), null)
+  is('settembre, il 3 novembre: chiuso', prorogaFino('2026-09', '2026-11-03'), null)
+  is('dicembre chiude il 7 gennaio', chiusuraCaricamenti('2026-12'), '2027-01-07')
 }
 
 console.log('\n— Il conto alla rovescia —')
