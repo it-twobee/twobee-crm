@@ -95,6 +95,29 @@ dell'intervallo (al massimo sei), senza script, stili, immagini e link tranne
 quelli alle analisi. È il materiale per riprodurre la pagina vera in un
 Chromium senza testa e capire dove LinkedIn ha spostato un numero.
 
+## La pagina di novembre 2026 (§498, estensione 1.3.0)
+LinkedIn ha rifatto la pagina «Attività»: classi offuscate, niente più `data-urn`
+sui post, e `/in/me/recent-activity/shares/` restava **una pagina bianca**
+(l'unica che funzionava era `/in/<nome-profilo>/recent-activity/all/`).
+`background.js` passa dal profilo (`/in/me/`), legge dove LinkedIn reindirizza e
+da lì va su `…/recent-activity/all/`. In `raccolta.js`:
+- **l'URN sta solo negli `href`** del link alle analisi (`…/analytics/post-summary/urn:li:activity:…`):
+  `urnDaAnalisi`. Il post è il più grande antenato di quel link che non contiene
+  il link di un altro post (`hostDaAnalisi`).
+- **il testo** non ha classi stabili: è il primo `<p>` figlio diretto dell'area
+  del post (quella che contiene il titolo nascosto `<h2>` «Post nel feed»),
+  `corpoDi`. Senza `<p>` (post solo immagine) resta vuoto: è giusto, non un errore.
+- **un post condiviso dentro il tuo** è il figlio dell'area che contiene un link
+  `/feed/update/urn:li:…` (`incorporatiDi`): il suo «Circa 100 commenti» e i suoi
+  numeri non sono tuoi. Prima il 3 novembre risultava con 100 commenti.
+- **reazioni, commenti, diffusioni** possono stare dentro il pulsante, senza la
+  parola: «Commenta» con un «1» dentro (`contaDaPulsante`); pulsante senza numero = 0.
+- LinkedIn riempie i numeri quando il post è in vista: `leggiConPazienza` porta
+  il post in vista e rilegge fino a tre volte, perché il primo giro scriveva 0.
+
+Provata su una pagina ricostruita dalla diagnostica del 5 novembre (testo, reazioni,
+commenti, diffusioni, impression e post condiviso), non sul LinkedIn vero.
+
 ## Il database (migration `272_sfida_linkedin.sql`)
 `linkedin_posts`, una riga per post. `post_urn` **unico da solo**: un post ha un
 autore, e lo stesso URN da due persone vuol dire che una ha caricato quello di

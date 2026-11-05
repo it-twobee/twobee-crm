@@ -139,15 +139,113 @@ function hostDi(el) {
   return host
 }
 
+var RE_URN = /urn:li:(?:activity|ugcPost|share):\d{15,22}/
+
+function decodifica(s) {
+  try { return decodeURIComponent(s) } catch (e) { return s }
+}
+
 /**
- * Un elemento è di questo post se il post più vicino ha lo **stesso URN** — non
- * lo stesso elemento: la barra delle reazioni sta dentro un blocco che ripete
- * l'URN del post, e confrontare gli elementi la scartava. Un post condiviso
- * dentro il tuo ha un altro URN, e resta fuori.
+ * L'URN del post dal link alle analisi. Da novembre 2026 LinkedIn non mette più
+ * `data-urn` / `data-id` sui post: l'URN sta solo negli `href`
+ * (…/analytics/post-summary/urn:li:activity:…), e il link alle analisi c'è solo sui tuoi.
  */
-function delPost(e, urn) {
+function urnDaAnalisi(el) {
+  var a = el.matches('a[href]') ? el : (el.querySelector('a[href*="urn:li:"], a[href*="urn%3Ali%3A"]') || el.closest('a[href]'))
+  var m = a && RE_URN.exec(decodifica(a.getAttribute('href') || ''))
+  return m ? m[0] : null
+}
+
+/**
+ * Senza `data-urn` il post è il **più grande antenato** del link alle analisi che
+ * non contiene il link alle analisi di un altro post: un salto più su ci sono
+ * anche i post vicini. Si ferma comunque a `main` / `body`.
+ */
+function hostDaAnalisi(a, urn) {
+  var host = a
+  while (host.parentElement) {
+    var su = host.parentElement
+    if (su === document.body || su === document.documentElement || su.tagName === 'MAIN' || su.getAttribute('role') === 'main') break
+    var altro = Array.from(su.querySelectorAll(SEL_ANALISI)).some(function (x) {
+      var u = urnDaAnalisi(x)
+      return !!u && u !== urn
+    })
+    if (altro) break
+    host = su
+  }
+  return host
+}
+
+/**
+ * Un elemento è di questo post se sta dentro `host` e, quando ha un antenato con
+ * `data-urn` dentro `host`, quello ha lo **stesso URN** — non lo stesso elemento:
+ * la barra delle reazioni sta dentro un blocco che ripete l'URN del post, e
+ * confrontare gli elementi la scartava. Un post condiviso dentro il tuo ha un
+ * altro URN, e resta fuori.
+ */
+function delPost(e, host, urn) {
   var h = e.closest(SEL_POST)
-  return !!h && urnDi(h) === urn
+  if (h && host.contains(h)) return urnDi(h) === urn
+  if (!host.contains(e)) return false
+  return !incorporatiDi(host).some(function (r) { return r.contains(e) })
+}
+
+/**
+ * Il blocco del post (novembre 2026): quello che contiene il titolo nascosto
+ * <h2> «Post nel feed». I suoi figli diretti sono l'intestazione, il testo
+ * dell'autore (un <p>), l'eventuale post condiviso e la barra dei pulsanti.
+ */
+function areaDi(host) {
+  var h2 = host.querySelector('h2')
+  return h2 && h2.parentElement && host.contains(h2.parentElement) ? h2.parentElement : null
+}
+
+var INCORPORATI = new WeakMap()
+
+/**
+ * I post condivisi dentro il tuo: il figlio dell'area che contiene un link a un
+ * altro post (/feed/update/urn:li:…). Il suo testo («Circa 100 commenti…») e i
+ * suoi numeri non sono tuoi, e non vanno letti. Si rifà a ogni lettura.
+ */
+function incorporatiDi(host) {
+  var r = INCORPORATI.get(host)
+  if (r) return r
+  r = []
+  var area = areaDi(host)
+  if (area) {
+    host.querySelectorAll('a[href*="/feed/update/urn:li:"], a[href*="/feed/update/urn%3Ali%3A"]').forEach(function (a) {
+      var el = a
+      while (el.parentElement && el.parentElement !== area) el = el.parentElement
+      if (el.parentElement === area && r.indexOf(el) < 0) r.push(el)
+    })
+  }
+  INCORPORATI.set(host, r)
+  return r
+}
+
+/**
+ * Il testo scritto dall'autore. Sulla pagina vecchia lo dicono le classi; su
+ * quella di novembre 2026 le classi sono offuscate e il testo è il primo <p>
+ * figlio diretto dell'area del post (i <p> dell'ora, dei numeri e del post
+ * condiviso stanno più in basso).
+ */
+function corpoDi(host, urn) {
+  var c = Array.from(host.querySelectorAll(SEL_CORPO)).filter(function (e) { return delPost(e, host, urn) })[0]
+  if (c) return c
+  var area = areaDi(host)
+  if (!area) return null
+  for (var i = 0; i < area.children.length; i++) {
+    if (area.children[i].tagName === 'P') return area.children[i]
+  }
+  return null
+}
+
+/** Il testo di un post senza il «…altro» che LinkedIn mette in fondo ai post lunghi. */
+function testoPulito(el) {
+  var t = (el.innerText || el.textContent || '').replace(/\s+/g, ' ')
+    .replace(/\s*(?:…|\.{3})\s*(?:altro|mostra altro|more|see more)\s*$/i, '').trim()
+  // 280 caratteri al massimo, tagliati all'ultima parola intera
+  return t.length > 280 ? t.slice(0, 279).replace(/\s+\S*$/, '') + '…' : t
 }
 
 /** I tuoi post sono quelli con l'ingresso alle analisi: le impression le vede solo l'autore. */
@@ -156,6 +254,11 @@ function postMiei() {
   document.querySelectorAll(SEL_ANALISI).forEach(function (a) {
     var host = hostDi(a)
     var urn = host && urnDi(host)
+    if (!urn) {
+      urn = urnDaAnalisi(a)
+      if (!urn || mappa.has(urn)) return
+      host = hostDaAnalisi(a, urn)
+    }
     if (urn && !mappa.has(urn)) mappa.set(urn, host)
   })
   if (mappa.size === 0) {
@@ -196,13 +299,13 @@ function testoSeparato(el) {
 function testiDi(host, urn, corpo) {
   var out = []
   host.querySelectorAll('[aria-label]').forEach(function (e) {
-    if (delPost(e, urn)) out.push(e.getAttribute('aria-label'))
+    if (delPost(e, host, urn)) out.push(e.getAttribute('aria-label'))
   })
   host.querySelectorAll('[class*="social-details"], [class*="social-counts"], [class*="social-activity"], ' + SEL_ANALISI).forEach(function (e) {
-    if (delPost(e, urn)) out.push(testoSeparato(e))
+    if (delPost(e, host, urn)) out.push(testoSeparato(e))
   })
   nodiDi(host).forEach(function (x) {
-    if (x.el && x.testo.length < 120 && delPost(x.el, urn) && !(corpo && corpo.contains(x.el))) out.push(x.testo)
+    if (x.el && x.testo.length < 120 && delPost(x.el, host, urn) && !(corpo && corpo.contains(x.el))) out.push(x.testo)
   })
   return out
 }
@@ -242,11 +345,27 @@ function reazioniDaRiga(tutti, corpo) {
   return null
 }
 
+/**
+ * Sulla pagina di novembre 2026 il numero sta dentro il pulsante, senza la
+ * parola: «Commenta» con un «1» dentro. Pulsante senza numero = zero. Nessun
+ * pulsante = null: sulla pagina vecchia il pulsante «Commenta» non ha numeri e
+ * lo zero sarebbe falso, quindi si usa solo dopo i testi «N commenti».
+ */
+function contaDaPulsante(tutti, nome) {
+  var bs = tutti('button[aria-label], a[aria-label]').filter(function (b) {
+    return nome.test((b.getAttribute('aria-label') || '').trim())
+  })
+  if (!bs.length) return null
+  var n = numeroNudo(testoSeparato(bs[0]))
+  return n === null ? 0 : n
+}
+
 function leggiPost(host, urn) {
+  INCORPORATI = new WeakMap()
   var tutti = function (sel) {
-    return Array.from(host.querySelectorAll(sel)).filter(function (e) { return delPost(e, urn) })
+    return Array.from(host.querySelectorAll(sel)).filter(function (e) { return delPost(e, host, urn) })
   }
-  var corpo = tutti(SEL_CORPO)[0] || null
+  var corpo = corpoDi(host, urn)
   var testi = testiDi(host, urn, corpo)
   var reazioni = contaDa(testi, PAROLE_SFIDA.reazioni)
   if (reazioni === null) reazioni = reazioniDaIcone(tutti)
@@ -255,8 +374,11 @@ function leggiPost(host, urn) {
     var rc = tutti('[class*="reactions-count"]')[0]
     if (rc) reazioni = reazioniDa(rc.innerText || rc.textContent)
   }
+  if (reazioni === null) reazioni = contaDaPulsante(tutti, /pulsante reazione|reaction button/i)
   var commenti = contaDa(testi, PAROLE_SFIDA.commenti)
+  if (commenti === null) commenti = contaDaPulsante(tutti, /^(commenta|comment)$/i)
   var diffusioni = contaDa(testi, PAROLE_SFIDA.diffusioni)
+  if (diffusioni === null) diffusioni = contaDaPulsante(tutti, /^(diffondi|repost|condividi)\b/i)
   return {
     post_urn: urn,
     url: 'https://www.linkedin.com/feed/update/' + urn + '/',
@@ -267,11 +389,28 @@ function leggiPost(host, urn) {
     diffusioni: diffusioni === null ? 0 : diffusioni,
     // le impression invece ci sono sempre, sui propri post: se mancano, la cella resta vuota
     impression: contaDa(testi, PAROLE_SFIDA.impression),
-    testo: corpo ? (corpo.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 280) : '',
+    testo: corpo ? testoPulito(corpo) : '',
   }
 }
 
 function attesa(ms) { return new Promise(function (r) { setTimeout(r, ms) }) }
+
+/**
+ * LinkedIn riempie i numeri di un post quando il post è in vista: il primo
+ * giro, con la pagina appena scorsa, ha scritto zero reazioni su post che ne
+ * avevano. Quindi il post si porta in vista, si aspetta, e se le reazioni non
+ * ci sono ancora si rilegge, fino a tre volte.
+ */
+async function leggiConPazienza(host, urn) {
+  host.scrollIntoView({ block: 'center' })
+  var r = null
+  for (var i = 0; i < 3; i++) {
+    await attesa(i === 0 ? 500 : 1500)
+    r = leggiPost(host, urn)
+    if (r.reazioniLette) break
+  }
+  return r
+}
 
 /** «Mostra altri risultati», «Visualizza altri post», «Show more results»: fuori dai post, visibile. */
 function bottoneAltri() {
@@ -285,10 +424,22 @@ function bottoneAltri() {
   return null
 }
 
-/** Se la pagina scorre dentro un contenitore e non nella finestra, si scorre quello. */
-function contenitoreScorrevole() {
+/** Quanti post vede la pagina: con o senza `data-urn`, i link alle analisi crescono a ogni caricamento. */
+function contaPost() {
+  return Math.max(document.querySelectorAll(SEL_POST).length, document.querySelectorAll(SEL_ANALISI).length)
+}
+
+/** L'ultimo post in pagina, quello verso cui si scorre. */
+function ultimoPost(miei) {
   var tutti = document.querySelectorAll(SEL_POST)
-  var e = tutti.length ? tutti[tutti.length - 1].parentElement : null
+  if (tutti.length) return tutti[tutti.length - 1]
+  var hosts = Array.from(miei.values())
+  return hosts.length ? hosts[hosts.length - 1] : null
+}
+
+/** Se la pagina scorre dentro un contenitore e non nella finestra, si scorre quello. */
+function contenitoreScorrevole(ultimo) {
+  var e = ultimo ? ultimo.parentElement : null
   while (e && e !== document.body && e !== document.documentElement) {
     var s = getComputedStyle(e)
     if (/(auto|scroll)/.test(s.overflowY) && e.scrollHeight > e.clientHeight + 10) return e
@@ -308,7 +459,7 @@ function contenitoreScorrevole() {
 async function scorri(dal, stato) {
   var fermo = 0
   for (var giro = 0; giro < 150 && fermo < 7; giro++) {
-    var prima = document.querySelectorAll(SEL_POST).length
+    var prima = contaPost()
     var miei = postMiei()
     stato('Scorro la tua attività… ' + miei.size + ' post tuoi caricati.')
     var passato = Array.from(miei.keys()).some(function (u) {
@@ -318,13 +469,13 @@ async function scorri(dal, stato) {
     if (passato) return
     var b = bottoneAltri()
     if (b) b.click()
-    var tutti = document.querySelectorAll(SEL_POST)
-    if (tutti.length) tutti[tutti.length - 1].scrollIntoView({ block: 'end' })
-    var box = contenitoreScorrevole()
+    var ultimo = ultimoPost(miei)
+    if (ultimo) ultimo.scrollIntoView({ block: 'end' })
+    var box = contenitoreScorrevole(ultimo)
     if (box) box.scrollTop = box.scrollHeight
     window.scrollTo(0, document.documentElement.scrollHeight)
     await attesa(1500 + Math.random() * 1500 + fermo * 1000)
-    fermo = document.querySelectorAll(SEL_POST).length > prima ? 0 : fermo + 1
+    fermo = contaPost() > prima ? 0 : fermo + 1
   }
 }
 
@@ -401,7 +552,8 @@ function pannello() {
 }
 
 function diagnostica() {
-  return 'Diagnostica: ' + document.querySelectorAll(SEL_POST).length + ' post in pagina, '
+  return 'Diagnostica: ' + document.querySelectorAll(SEL_POST).length + ' post con data-urn, '
+    + postMiei().size + ' tuoi riconosciuti, '
     + document.querySelectorAll(SEL_ANALISI).length + ' ingressi alle analisi, '
     + document.querySelectorAll('[class*="reactions-count"]').length + ' contatori di reazioni.'
 }
@@ -427,18 +579,28 @@ async function avviaSfida() {
     await scorri(iv.dal, ui.stato)
     var hosts = []
     var righe = []
+    var urns = []
     postMiei().forEach(function (host, urn) {
       var ms = msDaUrn(urn)
       var g = ms === null ? '' : giornoRoma(ms)
       if (g >= iv.dal && g <= iv.al) {
         hosts.push(host)
-        righe.push(leggiPost(host, urn))
+        urns.push(urn)
       }
     })
+    if (!opz.diagnostica) {
+      for (var i = 0; i < hosts.length; i++) {
+        ui.stato('Leggo i numeri… post ' + (i + 1) + ' di ' + hosts.length + '.')
+        righe.push(await leggiConPazienza(hosts[i], urns[i]))
+      }
+    }
 
     if (opz.diagnostica) {
-      var campione = hosts.length ? hosts.slice(0, 6) : Array.from(document.querySelectorAll(SEL_POST)).map(hostDi)
-        .filter(function (h, i, a) { return h && a.indexOf(h) === i }).slice(0, 6)
+      var campione = hosts.length ? hosts.slice(0, 6) : Array.from(postMiei().values()).slice(0, 6)
+      if (!campione.length) {
+        campione = Array.from(document.querySelectorAll(SEL_POST)).map(hostDi)
+          .filter(function (h, i, a) { return h && a.indexOf(h) === i }).slice(0, 6)
+      }
       scarica(paginaDiagnostica(campione), 'linkedin-diagnostica-' + giornoRoma(ora) + '.html', 'text/html;charset=utf-8')
       ui.fine('File di diagnostica nei download: ' + campione.length + ' post, senza immagini né link.\n'
         + 'Mandalo a chi cura TwoBee OS insieme ai numeri che vedi sotto quei post.\n' + diagnostica(), false)
