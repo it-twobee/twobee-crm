@@ -339,3 +339,14 @@ export function portaleDi(pathname: string): 'admin' | 'workspace' | 'portale' |
   if (pathname.startsWith('/risorsa')) return 'risorsa'
   return 'admin'
 }
+
+/**
+ * La rotta che il battito registra. La lavagna del team è anonima, e «chi era
+ * sulla lavagna nel minuto in cui è comparso quel post-it» la firmerebbe: lì il
+ * tempo si conta lo stesso, ma la sezione resta quella del portale.
+ */
+export function rottaDaRegistrare(pathname: string): string {
+  const m = pathname.match(/^\/(workspace\/)?lavagna(\/|$)/)
+  if (!m) return pathname
+  return m[1] ? '/workspace' : '/'
+}

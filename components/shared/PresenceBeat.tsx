@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
-import { INTERVALLO_BEAT_MS, portaleDi } from '@/lib/presenza'
+import { INTERVALLO_BEAT_MS, portaleDi, rottaDaRegistrare } from '@/lib/presenza'
 
 /**
  * §410 — il battito che misura l'uso vero del tool.
@@ -65,7 +65,8 @@ export function PresenceBeat() {
       interazioni.current = 0
       const corpo = JSON.stringify({
         portale: portaleDi(rotta.current || '/'),
-        route: (rotta.current || '/').split('?')[0],
+        // la lavagna è anonima: chi c'era e in che minuto basterebbe a firmarla
+        route: rottaDaRegistrare((rotta.current || '/').split('?')[0]),
         interazioni: n,
       })
       // `keepalive` perché in chiusura di scheda una fetch normale viene

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, CheckSquare, FolderKanban, Calendar, MessageSquare,
   FileText, Heart, User, UserCircle2, Users, BarChart3, Bot, TrendingUp,
   ListChecks, ListTodo, Headset, Briefcase, Headphones, Ticket, Receipt, History,
-  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake, Megaphone, Trophy} from 'lucide-react'
+  Lightbulb, Gauge, ChevronLeft, ChevronRight, ChevronDown, LogOut, Trash2, Radar, Handshake, Megaphone, Trophy, Sticker} from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import { ROLE_LABELS } from '@/lib/permissions'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -48,6 +48,8 @@ export const ICON_MAP: Record<string, React.ComponentType<{ className?: string }
   Megaphone,
   // §477 — Sfida LinkedIn: la stessa del portale admin
   Trophy,
+  // Lavagna: la stessa del portale admin
+  Sticker,
 }
 
 // Etichette dei gruppi della sidebar. L'ordine è dato da group_order in tabella;

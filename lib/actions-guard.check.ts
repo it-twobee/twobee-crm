@@ -48,6 +48,11 @@ const GUARD_CONDIVISE = [
   /* §430 — `requireDealAccess` passa da `requireSalesAccess` e in più chiede
      se quella riga è di chi chiama: la stessa porta, più stretta. */
   'requireDealAccess',
+  /* La lavagna del team: `requireLavagna` (lib/lavagna-server.ts) legge la
+     sessione e chiede `canSeeLavagna` / `canWriteLavagna` prima del service
+     role. Sta fuori dal file delle azioni perché la usano anche le rotte dei
+     file, e la firma dell'autore si calcola in un posto solo. */
+  'requireLavagna',
 ]
 const LEGGE_SESSIONE = /auth\.getUser\(|getSessionProfile\(|getSessionUser\(|getViewer\(/
 /**

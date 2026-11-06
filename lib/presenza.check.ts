@@ -5,7 +5,7 @@ import {
   INTERVALLO_BEAT_MS, GAP_SESSIONE_MIN, ONLINE_MS, SESSIONI_MOSTRATE,
   attivoMs, durataMs, sezionePrincipale, vistaSessione, statoDi, assenteMs,
   durataTesto, assenzaTesto, sezioniTop, componiUtilizzo, ordinaPerPresenza, portaleDi,
-  modificheParziali, etichettaStato, etichettaAccesso, CRONOLOGIA_COMPLETA_DA,
+  modificheParziali, etichettaStato, etichettaAccesso, CRONOLOGIA_COMPLETA_DA, rottaDaRegistrare,
   type SessioneRow, type TotaliRow,
 } from '@/lib/presenza'
 
@@ -153,6 +153,12 @@ const sql = readFileSync(join(process.cwd(), 'supabase/migrations/252_presenza_r
 is('la migration usa il gap di lib/presenza.ts', sql.includes(`interval '${GAP_SESSIONE_MIN} minutes'`), true)
 is('il gap è più largo della soglia di online', GAP_SESSIONE_MIN * 60_000 > ONLINE_MS, true)
 is('la soglia di online è più larga di un battito', ONLINE_MS > INTERVALLO_BEAT_MS, true)
+
+console.log('\n— La lavagna non lascia la sezione nel battito —')
+is('admin: /lavagna → /', rottaDaRegistrare('/lavagna'), '/')
+is('workspace: /workspace/lavagna → /workspace', rottaDaRegistrare('/workspace/lavagna'), '/workspace')
+is('le altre rotte restano', rottaDaRegistrare('/workspace/linkedin'), '/workspace/linkedin')
+is('una sezione che comincia per «lavagna» non è la lavagna', rottaDaRegistrare('/lavagnetta'), '/lavagnetta')
 
 console.log(fail ? `\n${fail} controlli falliti.` : '\nTutti i controlli passano.')
 process.exit(fail ? 1 : 0)

@@ -99,6 +99,19 @@
   --color-persona-viola: #9085E9;
   --color-persona-rosso: #E66767;
 
+  /* La lavagna: carta, non interfaccia. Un post-it resta un foglio chiaro con
+     l'inchiostro scuro in tutti e due i temi — al buio solo un po' spento, per
+     non abbagliare. Il nastro è semitrasparente come lo scotch di carta. */
+  --color-postit-giallo: #EED36A;
+  --color-postit-rosa: #EDA8C4;
+  --color-postit-verde: #A9D9A0;
+  --color-postit-azzurro: #9FC8EC;
+  --color-postit-arancio: #F1B47E;
+  --color-postit-lilla: #C2B3EC;
+  --color-on-postit: #1B1B1F;
+  --color-polaroid: #ECEAE4;
+  --color-nastro: rgba(236,226,196,0.62);
+
   --overlay-tint: 255,255,255;
   --shadow-color: rgba(0,0,0,0.45);
   --color-scrim: rgba(0,0,0,0.72);
@@ -188,6 +201,16 @@
   --color-persona-verde: #008300;
   --color-persona-viola: #4A3AA7;
   --color-persona-rosso: #E34948;
+
+  --color-postit-giallo: #FFE88A;
+  --color-postit-rosa: #FFC4DB;
+  --color-postit-verde: #C6EFBE;
+  --color-postit-azzurro: #C2E0FF;
+  --color-postit-arancio: #FFD3A8;
+  --color-postit-lilla: #DED3FF;
+  --color-on-postit: #1B1B1F;
+  --color-polaroid: #FFFFFF;
+  --color-nastro: rgba(222,208,170,0.70);
 
   --overlay-tint: 16,24,40;
   --shadow-color: rgba(16,24,40,0.10);
@@ -393,6 +416,14 @@
     box-shadow: var(--shadow-card);
     transform: translateY(-1px);
   }
+
+  /* La lavagna: una cosa appena attaccata arriva con un piccolo schiocco. */
+  .lavagna-pop { animation: lavagna-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+  @keyframes lavagna-pop {
+    from { opacity: 0; transform: scale(0.7); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) { .lavagna-pop { animation: none; } }
 
   /* Feedback tattile al click: leggera compressione. */
   .press { transition: transform 0.08s ease; }

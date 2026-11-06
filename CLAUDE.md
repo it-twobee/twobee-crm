@@ -29,6 +29,7 @@ database vero, e riscoprirle costa più che leggerle.
 | utilizzo del tool, presenza, `lib/presenza.ts`, `os_sessions`, `/impostazioni/utilizzo` | `docs/presenza.md` |
 | contenuti social, `/social`, `lib/social.ts`, piano editoriale, creatività social | `docs/social.md` |
 | sfida LinkedIn del team, `/linkedin`, `lib/linkedin.ts`, l'estensione in `public/estensione-linkedin/` | `docs/sfida-linkedin.md` |
+| lavagna del team, `/lavagna`, `lib/lavagna*.ts`, sticker e galleria, anonimato | `docs/lavagna.md` |
 
 ## Invarianti — valgono anche senza aprire i doc
 - **Nessun valore economico si digita**: contratti e rate sono l'unica scrittura,

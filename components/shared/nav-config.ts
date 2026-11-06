@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Users, FolderOpen, Settings, CalendarDays, Headphones,
   Ticket, UserCircle2, History, Lightbulb, FolderKanban, Briefcase, ListChecks, ListTodo,
   Wallet, Target, Handshake, Landmark, Users2, Banknote, FileText, Share2, Table2, Radar, KeyRound, Activity, GitBranch, Upload,
-  Megaphone, FlaskConical, Trophy,
+  Megaphone, FlaskConical, Trophy, Sticker,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -83,6 +83,8 @@ export const navSections: NavSection[] = [
       { href: '/hr', icon: UserCircle2, label: 'HR & Team' },
       // §477 — la sfida LinkedIn del mese: impression e reazioni dei post del team
       { href: '/linkedin', icon: Trophy, label: 'Sfida LinkedIn' },
+      // la lavagna del team: post-it, sticker, foto e link, anonimi (docs/lavagna.md)
+      { href: '/lavagna', icon: Sticker, label: 'Lavagna' },
     ],
   },
   {
