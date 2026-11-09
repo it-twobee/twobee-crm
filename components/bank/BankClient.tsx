@@ -377,7 +377,8 @@ export function BankClient({
                 saldo guardato a mezzogiorno dello stesso giorno sono due cose
                 diverse, ed è la confusione che questa riga esiste per togliere. */}
             {account.statement_balance != null && (() => {
-              const scarto = Math.round((bal.real - account.statement_balance!) * 100) / 100
+              const alGiorno = account.statement_on ? balance(account, ownTxs, account.statement_on).real : bal.real
+              const scarto = Math.round((alGiorno - account.statement_balance!) * 100) / 100
               const quando = account.statement_at
                 ? new Date(account.statement_at).toLocaleString('it-IT',
                     { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
