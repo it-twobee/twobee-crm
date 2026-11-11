@@ -42,6 +42,13 @@ una sola lettura di «incassata»: la riga è pagata solo se i movimenti la copr
 resto. Competenza del mese prima, erogazione del 20; gli arretrati di mesi
 precedenti non sono inclusi.
 
+**Voce per voce** (`payoutPeople` + `groupRows` di `lib/payout-report.ts`): i tre
+soci — Marco Lucci, Toto Piacente, Walter Giacobbe — sono una persona ciascuno
+(socio e commerciale uniti da `mergePeople`, §226), ogni compenso si apre nelle
+sue righe con base × percentuale = importo, e il commerciale non socio sta a
+parte. `mergeVoci` toglie i doppioni (stessa riga, stesso motivo, stesso mese):
+identici → una sola; pezzi diversi dello stesso fatto → sommati.
+
 Gate: `npx tsx lib/mese-banca.check.ts`. Da fare: proporre gli abbinamenti
 (`matchCandidates`) ai movimenti senza fattura né riga — a ottobre 2026 sono
 4.231 € di uscite senza IVA nota.

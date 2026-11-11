@@ -247,3 +247,39 @@ export function vatLever(
   const t = vatTotals(within, allocs, src)
   return { ...t, held: r2(t.inVat - t.outVat), from, upTo }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Le voci di un compenso, senza duplicati
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type Voce = {
+  lineId: string
+  reason: string
+  month: string | null
+  amount: number
+  pct: number
+  base: number
+}
+
+/**
+ * Una voce di compenso è «questa riga, per questo motivo, di questo mese»: due
+ * voci con la stessa chiave sono lo stesso fatto.
+ *
+ * Se dicono **la stessa cosa** (stessa quota, stesso importo) sono un doppione:
+ * se ne tiene una. Se dicono **cose diverse** sullo stesso fatto sono due
+ * pezzi di una voce sola — una provvigione divisa che arriva da due strade —
+ * e si sommano. Sommare i doppioni raddoppierebbe un compenso; tenerli entrambi
+ * lo scriverebbe due volte: nessuna delle due è un'unione.
+ */
+export function mergeVoci<T extends Voce>(voci: T[]): T[] {
+  const out = new Map<string, T>()
+  for (const v of voci) {
+    const key = `${v.lineId}|${v.reason}|${v.month ?? ''}`
+    const cur = out.get(key)
+    if (!cur) { out.set(key, { ...v }); continue }
+    const same = Math.abs(cur.amount - v.amount) < 0.005 && Math.abs(cur.pct - v.pct) < 1e-9
+    if (same) continue
+    out.set(key, { ...cur, amount: r2(cur.amount + v.amount), pct: cur.pct + v.pct })
+  }
+  return Array.from(out.values())
+}

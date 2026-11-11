@@ -1,4 +1,4 @@
-import { lineBank, withBankPaid, monthCash, vatOf, vatTotals, vatLever, type MTx, type MAlloc, type VatSources } from './mese-banca'
+import { lineBank, withBankPaid, monthCash, vatOf, vatTotals, vatLever, mergeVoci, type MTx, type MAlloc, type VatSources } from './mese-banca'
 
 let fail = 0, n = 0
 const ok = (c: boolean, m: string) => { n++; if (!c) { fail++; console.error('✗', m) } }
@@ -82,6 +82,15 @@ ok(vt.inVat === 220 && vt.outVat === 8.8 && vt.outUnknown === 300 && vt.inUnknow
 const lv = vatLever([tx({ id: 'a', amount: 1220, revenue_line_id: 'A', booked_on: '2026-10-05' }),
   tx({ id: 'old', amount: 1220, revenue_line_id: 'A', booked_on: '2026-06-05' })] as T[], [], src, '2026-10-01', '2026-11-10')
 ok(lv.held === 220, 'leva: conta dal primo trimestre non versato, non da prima')
+
+
+// ── voci di compenso ────────────────────────────────────────────────────────
+const V = (o: Partial<{ lineId: string; reason: string; month: string | null; amount: number; pct: number; base: number }> = {}) =>
+  ({ lineId: 'L1', reason: 'erogato', month: '2026-10-01', amount: 100, pct: 0.1, base: 1000, ...o })
+ok(mergeVoci([V(), V()]).length === 1 && mergeVoci([V(), V()])[0].amount === 100, 'due voci identiche: un doppione, se ne tiene una')
+const sommate = mergeVoci([V({ amount: 60, pct: 0.06 }), V({ amount: 40, pct: 0.04 })])
+ok(sommate.length === 1 && sommate[0].amount === 100 && Math.abs(sommate[0].pct - 0.1) < 1e-9, 'stesso fatto, pezzi diversi: si sommano')
+ok(mergeVoci([V(), V({ reason: 'provvigione' }), V({ month: '2026-09-01' }), V({ lineId: 'L2' })]).length === 4, 'motivo, mese e riga diversi restano voci distinte')
 
 console.log(fail ? `${fail} su ${n} non passano` : `${n} controlli. Tutti i controlli passano.`)
 process.exit(fail ? 1 : 0)

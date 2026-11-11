@@ -3,9 +3,10 @@ import { computeMonth, rowToPlConfig, shiftMonth, monthLabel, type Partner } fro
 import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 import { buildWindow, takenIn, marginCostsFor, placeLine, type WindowVerdict } from '@/lib/payout-window'
 import {
-  counts, lineBank, withBankPaid, vatOf, vatTotals, vatLever,
+  counts, lineBank, withBankPaid, vatOf, vatTotals, vatLever, mergeVoci,
   type MTx, type MAlloc, type VatSources, type LineBank,
 } from '@/lib/mese-banca'
+import { payoutPeople, groupRows, REASON } from '@/lib/payout-report'
 import { quarterOf, quarterMonths, quarterLabel, deadlineFor } from '@/lib/vat'
 import { balance, type BankTx } from '@/lib/bank'
 import { eur2 } from '@/lib/money'
@@ -190,10 +191,20 @@ export async function BancaMese({ month, today }: { month: string; today: string
     const presi = takenIn(bankRev, w)
     const mc = marginCostsFor(costs, new Set(presi.map(l => l.month)), pay)
     const t = computeMonth(presi, mc, config, partners, mc, rev)
-    const people = new Map<string, number>()
-    for (const p of t.perPartner) people.set(p.partner.label, r2((people.get(p.partner.label) ?? 0) + p.total))
-    for (const s of t.salesByOwner) people.set(s.label, r2((people.get(s.label) ?? 0) + s.amount))
-    const tot = r2(Array.from(people.values()).reduce((a, b) => a + b, 0))
+    /* I tre soci, con il nome intero: «Marco» in `pl_partners` e «Marco Lucci»
+       fra i commerciali sono una persona sola (`mergePeople`, §226). */
+    const SOCI = ['Marco Lucci', 'Toto Piacente', 'Walter Giacobbe']
+    const clientNames = new Map(((clients ?? []) as Row[]).map(c => [String(c.id), String(c.display_name || c.company_name)]))
+    const persone = payoutPeople({ t, lines: [], owners: SOCI })
+      .map(p => ({ ...p, rows: mergeVoci(p.rows) }))
+      .map(p => ({ ...p, total: r2(p.rows.reduce((n, r) => n + r.amount, 0)) }))
+    const isSocio = (who: string) => SOCI.includes(who)
+    const ordinate = [
+      ...SOCI.map(n => persone.find(p => p.who === n) ?? { who: n, partnerId: null, socio: 0, comm: 0, total: 0, spent: 0, cash: 0, overspent: 0, rows: [], paid: false, paidOn: null }),
+      ...persone.filter(p => !isSocio(p.who)),
+    ]
+    const tot = r2(ordinate.reduce((a, p) => a + p.total, 0))
+    const pct = (x: number) => `${(Math.round(x * 10000) / 100).toString().replace('.', ',')}%`
     compensi = (
       <div className="p-3 space-y-3">
         <Note>
@@ -201,22 +212,52 @@ export async function BancaMese({ month, today }: { month: string; today: string
             Competenza di {monthLabel(pay)}, erogazione del <strong>{w.date}</strong>. Conta solo ciò che un
             movimento di banca copre per intero, entro quella data
             {w.since ? ` (incassi dopo il ${w.since})` : ''}. Gli arretrati di mesi precedenti non sono inclusi.
+            Ogni voce è una riga incassata × la sua percentuale; le voci uguali sono unite, non ripetute.
           </p>
         </Note>
-        {people.size === 0 ? <p className="text-sm text-text-tertiary px-1">Nessuna riga incassata in finestra: niente da erogare.</p> : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {Array.from(people).map(([who, amount]) => (
-              <div key={who} className="flex items-baseline justify-between gap-2 rounded-xl border border-border px-3 py-2.5">
-                <p className="text-sm text-text-primary">{who}</p>
-                <p className="text-base font-semibold text-text-primary tabular-nums">{eur2(amount)}</p>
+        {ordinate.map(p => {
+          const gruppi = groupRows(p.rows)
+          return (
+            <section key={p.who} className="rounded-xl border border-border overflow-hidden" aria-label={`Compenso di ${p.who}`}>
+              <div className="flex items-baseline justify-between gap-2 px-3 py-2.5 bg-surface-hover">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text-primary">{p.who}</p>
+                  <p className="text-2xs text-text-tertiary">{isSocio(p.who) ? 'socio' : 'commerciale, non socio'}</p>
+                </div>
+                <p className="text-base font-semibold text-text-primary tabular-nums">{eur2(p.total)}</p>
               </div>
-            ))}
-            <div className="flex items-baseline justify-between gap-2 rounded-xl bg-surface-hover px-3 py-2.5 sm:col-span-2">
-              <p className="text-sm font-semibold text-text-primary">Totale da erogare</p>
-              <p className="text-base font-semibold text-text-primary tabular-nums">{eur2(tot)}</p>
-            </div>
-          </div>
-        )}
+              {gruppi.length === 0
+                ? <p className="px-3 py-3 text-2xs text-text-tertiary leading-snug">Niente da erogare: nessuna riga incassata in finestra gli porta una quota.</p>
+                : gruppi.map(g => (
+                  <div key={g.reason}>
+                    <div className="flex items-center justify-between gap-3 px-3 py-1.5 border-t border-border/60 bg-surface">
+                      <p className="text-2xs font-semibold text-text-secondary">{REASON[g.reason]}</p>
+                      <p className="text-2xs font-semibold text-text-secondary tabular-nums">{eur2(g.total)}</p>
+                    </div>
+                    {g.rows.map(r => (
+                      <div key={`${r.lineId}|${r.reason}|${r.month ?? ''}`} className="px-3 py-2 border-t border-border/60">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm text-text-primary leading-snug break-words min-w-0">
+                            {(r.clientId && clientNames.get(r.clientId)) || r.label}
+                            {r.month && <span className="text-2xs text-text-tertiary"> · competenza {monthLabel(r.month).toLowerCase()}</span>}
+                          </p>
+                          <p className="text-sm tabular-nums text-text-primary whitespace-nowrap">{eur2(r.amount)}</p>
+                        </div>
+                        <p className="text-2xs text-text-tertiary leading-snug break-words">
+                          {r.label} · {r.kind === 'digital' ? `margine ${eur2(r.base)}${r.external > 0 ? ` (rata meno ${eur2(r.external)} di subappalto)` : ''}` : `imponibile ${eur2(r.base)}`}
+                          {' '}× {pct(r.pct)} = {eur2(r.amount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+            </section>
+          )
+        })}
+        <div className="flex items-baseline justify-between gap-2 rounded-xl bg-surface-hover px-3 py-2.5">
+          <p className="text-sm font-semibold text-text-primary">Totale da erogare</p>
+          <p className="text-base font-semibold text-text-primary tabular-nums">{eur2(tot)}</p>
+        </div>
         <ul className="text-2xs text-text-tertiary leading-snug space-y-1">
           {bankRev.map(l => {
             const c: LineBank = covR.get(l.id)!

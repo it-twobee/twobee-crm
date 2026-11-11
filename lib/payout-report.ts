@@ -117,7 +117,7 @@ export type PayoutReportInput = {
  * portato, il secondo una provvigione che si è deciso di dividere. Su un foglio
  * che qualcuno userà per contestare un numero, la differenza è tutto.
  */
-const REASON: Record<QuotaRow['reason'], string> = {
+export const REASON: Record<QuotaRow['reason'], string> = {
   erogato: 'Erogato growth',
   digital: 'Quota digital',
   residuo: 'Residuo growth',
