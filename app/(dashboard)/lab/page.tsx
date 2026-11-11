@@ -5,8 +5,8 @@ export const revalidate = 0
 
 const SEZIONI: { nome: string; nota: string; href?: string }[] = [
   { nome: 'Mese', nota: 'Conto economico e prospetto in una pagina, con il piano costi dentro.', href: '/lab/novembre' },
-  { nome: 'Progetti', nota: 'Una riga per progetto: venduto, rate, affidato fuori, margine.' },
-  { nome: 'Fatturazione', nota: 'Una sola azione per riga: emessa, incassata.' },
+  { nome: 'Progetti', nota: 'Una riga per progetto: venduto, rate, affidato fuori, margine.', href: '/lab/progetti' },
+  { nome: 'Fatturazione', nota: 'Una sola azione per riga: emessa, incassata.', href: '/lab/fatturazione' },
   { nome: 'Banca', nota: 'Da riconciliare per mese, con «crea la voce» accanto alla riga.' },
 ]
 

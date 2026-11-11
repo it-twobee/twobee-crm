@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation'
 import { InvoicesClient } from '@/components/invoices/InvoicesClient'
 import { monthKey, shiftMonth } from '@/lib/pl'
 import { linesForMonth, type Installment, type RevenueStream } from '@/lib/revenue'
-import { billingCashSeries, billingSeries, withDueRule, withRectifications } from '@/lib/invoices'
+import { billingCashSeries, billingSeries } from '@/lib/invoices'
+import { INVOICE_COLUMNS, toInvoices } from '@/lib/invoices-load'
 import type { Invoice, LineRef, TxRef } from '@/lib/invoices'
 
 export const revalidate = 0
@@ -33,9 +34,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
        caricamento per non leggerne un carattere. Il file resta dov'è: è la
        prova, e si rilegge quando serve davvero. */
     supabase.from('invoices')
-      .select('id, direction, doc_type, number, issued_on, counterparty_name, counterparty_vat, '
-        + 'client_id, taxable, vat_amount, total, sign, due_date, paid_on, pdf_path, '
-        + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id')
+      .select(INVOICE_COLUMNS)
       .order('issued_on', { ascending: false }),
     supabase.from('clients').select('id, company_name, display_name, piva').order('company_name'),
   ])
@@ -71,29 +70,7 @@ export default async function FatturePage({ searchParams }: { searchParams: { m?
   const n = (v: unknown) => Number(v ?? 0)
 
   /* §443 — le nostre senza scadenza scadono per regola (§177), come le legge la cassa */
-  const invoices: Invoice[] = withDueRule(withRectifications((rowsSafe ?? []).map((r: Record<string, unknown>) => ({
-    id: String(r.id),
-    direction: r.direction === 'ricevuta' ? 'ricevuta' : 'emessa',
-    docType: String(r.doc_type ?? 'TD01'),
-    number: String(r.number ?? '—'),
-    issuedOn: String(r.issued_on),
-    counterpartyName: String(r.counterparty_name ?? 'Senza nome'),
-    counterpartyVat: (r.counterparty_vat as string) ?? null,
-    clientId: (r.client_id as string) ?? null,
-    taxable: n(r.taxable), vatAmount: n(r.vat_amount), total: n(r.total),
-    sign: r.sign === -1 ? -1 : 1,
-    dueDate: (r.due_date as string) ?? null,
-    paidOn: (r.paid_on as string) ?? null,
-    pdfPath: (r.pdf_path as string) ?? null,
-    // §281 — se c'è, la fattura è fuori dai conti e il testo dice perché
-    excludedReason: (r.excluded_reason as string) ?? null,
-    warnings: (r.warnings as string[]) ?? undefined,
-    /* §323 — il viaggio del documento e lo storno. `from_sdi` è generata dal
-       database sul fatto: c'è l'XML, quindi è transitata. */
-    fromSdi: r.from_sdi === true,
-    sentOn: (r.sent_on as string) ?? null,
-    rectifiesId: (r.rectifies_id as string) ?? null,
-  }))))
+  const invoices: Invoice[] = toInvoices((rowsSafe ?? []) as Record<string, unknown>[])
 
   const lines: LineRef[] = [
     ...(rev ?? []).map((r: Record<string, unknown>) => ({

@@ -8,6 +8,8 @@ import { eur2 } from '@/lib/money'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ChevronDown, Info } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Suspense } from 'react'
+import { BancaMese } from './BancaMese'
 
 export const revalidate = 0
 
@@ -220,6 +222,11 @@ export default async function NovembrePage({ searchParams }: { searchParams: { m
           )}
         </section>
 
+        <Suspense fallback={<p className="text-2xs text-text-tertiary px-1">Leggo i movimenti di banca…</p>}>
+          <BancaMese month={month} today={new Date().toISOString().slice(0, 10)} />
+        </Suspense>
+
+        <h2 className="text-2xs font-semibold text-text-secondary px-1 pt-2">Il piano dai contratti</h2>
         <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
           <div className="space-y-3">
             <Section title="Entrate" total={eur2(revenue)} note={`${byClient.size} ${byClient.size === 1 ? 'cliente' : 'clienti'} · canoni e rate`}

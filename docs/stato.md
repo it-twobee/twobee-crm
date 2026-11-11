@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Laboratorio: Mese dalla banca, Progetti, Fatturazione — §500, 2026-11-11
+
+`/lab/novembre` legge cassa, righe e compensi dai movimenti veri (`lib/mese-banca.ts`):
+una riga è incassata solo se la banca la copre per intero, e i compensi si
+ricalcolano su quello. Su ottobre: 7.700 di base contro 10.825 delle spunte.
+Nascono `/lab/progetti` e `/lab/fatturazione`, in sola lettura; il mapper delle
+fatture passa a `lib/invoices-load.ts` anche per `/economics/fatturazione`.
+Nessuna migration. Dettaglio in `docs/lab.md`.
+
 ## I lead del modulo IA entrano — §494, 2026-10-28
 
 Il foglio dei lead Meta ha una scheda per modulo, e il giro leggeva solo la
