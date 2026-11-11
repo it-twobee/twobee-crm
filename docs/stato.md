@@ -2,9 +2,9 @@
 
 ## Laboratorio: Mese dalla banca, Progetti, Fatturazione — §500, 2026-11-11
 
-`/lab/novembre` legge cassa, righe e compensi dai movimenti veri (`lib/mese-banca.ts`):
-una riga è incassata solo se la banca la copre per intero, e i compensi si
-ricalcolano su quello. Su ottobre: 7.700 di base contro 10.825 delle spunte.
+`/lab/novembre` è solo banca (`lib/mese-banca.ts`): entrato e uscito dai
+movimenti veri, ognuno con la sua IVA, la leva dell'IVA (incassata meno pagata dal
+primo trimestre non versato) e i compensi sull'incassato confermato dal conto.
 Nascono `/lab/progetti` e `/lab/fatturazione`, in sola lettura; il mapper delle
 fatture passa a `lib/invoices-load.ts` anche per `/economics/fatturazione`.
 Nessuna migration. Dettaglio in `docs/lab.md`.

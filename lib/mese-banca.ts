@@ -146,3 +146,104 @@ export function monthCash(txs: MTx[], allocs: MAlloc[], month: string) {
     movimenti: inMonth.length,
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// L'IVA che è passata dal conto
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type VatInvoice = { vat: number; total: number }
+export type VatLine = { rate: number; applied: boolean; deductible: number; gross: number }
+
+export type VatSources = {
+  /** fattura emessa/ricevuta per id: l'IVA vera, scritta sul documento */
+  invoices: Map<string, VatInvoice>
+  revenue: Map<string, VatLine>
+  cost: Map<string, VatLine>
+}
+
+/** Movimenti su cui l'IVA non esiste: stipendi, imposte, rate, commissioni. */
+const NO_VAT_KINDS = ['stipendio', 'imposta', 'finanziamento', 'commissione']
+
+export type TxVat = {
+  /** IVA contenuta nel movimento, per la parte che si sa */
+  vat: number
+  /** lordo per cui l'IVA è determinata (documento, riga o natura del movimento) */
+  basis: number
+  via: 'fattura' | 'riga' | 'natura' | null
+}
+
+/**
+ * Quanta IVA c'è in un movimento, e per quanto del movimento lo si sa.
+ *
+ * Prima il documento (la fattura agganciata dice l'IVA al centesimo, in
+ * proporzione a quanto il movimento ne paga), poi la riga di conto economico
+ * (lordo allocato × aliquota), poi la natura (uno stipendio non ha IVA). Quello
+ * che resta **non è zero, è sconosciuto**: `basis` dice quanto del movimento è
+ * coperto, e il resto si dichiara invece di sommare uno zero plausibile.
+ */
+export function vatOf(
+  t: MTx & { invoice_id?: string | null }, allocs: MAlloc[], src: VatSources,
+): TxVat {
+  const abs = Math.abs(t.amount)
+  if (t.invoice_id) {
+    const inv = src.invoices.get(t.invoice_id)
+    if (inv && inv.total > 0) {
+      const share = Math.min(1, abs / inv.total)
+      return { vat: r2(inv.vat * share), basis: abs, via: 'fattura' }
+    }
+  }
+  const side = t.amount > 0 ? 'revenue_line_id' : 'cost_line_id'
+  const lines = t.amount > 0 ? src.revenue : src.cost
+  const mine = allocs.filter(a => a.tx_id === t.id && a[side])
+  const parts = mine.length ? mine.map(a => ({ id: a[side]!, amount: a.amount }))
+    : t[side] ? [{ id: t[side]!, amount: abs }] : []
+  if (parts.length) {
+    let vat = 0, basis = 0
+    for (const p of parts) {
+      const l = lines.get(p.id)
+      if (!l) continue
+      const amount = Math.min(p.amount, l.gross > 0 ? l.gross : p.amount)
+      basis += amount
+      if (l.applied) vat += (amount * l.rate / (1 + l.rate)) * (t.amount < 0 ? l.deductible : 1)
+    }
+    if (basis > 0) return { vat: r2(vat), basis: r2(Math.min(basis, abs)), via: 'riga' }
+  }
+  if (NO_VAT_KINDS.includes(t.kind)) return { vat: 0, basis: abs, via: 'natura' }
+  return { vat: 0, basis: 0, via: null }
+}
+
+export type VatTotals = {
+  /** IVA sulle entrate, per la parte nota */
+  inVat: number
+  /** IVA detraibile sulle uscite, per la parte nota */
+  outVat: number
+  /** lordo entrato/uscito per cui l'IVA non si sa: va detto, non azzerato */
+  inUnknown: number
+  outUnknown: number
+}
+
+export function vatTotals(txs: (MTx & { invoice_id?: string | null })[], allocs: MAlloc[], src: VatSources): VatTotals {
+  let inVat = 0, outVat = 0, inUnknown = 0, outUnknown = 0
+  for (const t of txs.filter(counts)) {
+    const v = vatOf(t, allocs, src)
+    const unknown = Math.max(0, Math.abs(t.amount) - v.basis)
+    if (t.amount > 0) { inVat += v.vat; inUnknown += unknown }
+    else { outVat += v.vat; outUnknown += unknown }
+  }
+  return { inVat: r2(inVat), outVat: r2(outVat), inUnknown: r2(inUnknown), outUnknown: r2(outUnknown) }
+}
+
+/**
+ * La leva dell'IVA: quella incassata dai clienti e uscita dal conto per nessun
+ * fornitore, ancora in conto in attesa del versamento. È cassa, non debito
+ * fiscale: l'imposta si deve sulle fatture, questa è l'IVA che **è passata**.
+ * Si somma dall'inizio del primo trimestre non versato fino a `upTo`.
+ */
+export function vatLever(
+  txs: (MTx & { invoice_id?: string | null })[], allocs: MAlloc[], src: VatSources,
+  from: string, upTo: string,
+) {
+  const within = txs.filter(t => counts(t) && t.booked_on >= from && t.booked_on <= upTo)
+  const t = vatTotals(within, allocs, src)
+  return { ...t, held: r2(t.inVat - t.outVat), from, upTo }
+}

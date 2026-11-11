@@ -1,4 +1,4 @@
-import { lineBank, withBankPaid, monthCash, type MTx, type MAlloc } from './mese-banca'
+import { lineBank, withBankPaid, monthCash, vatOf, vatTotals, vatLever, type MTx, type MAlloc, type VatSources } from './mese-banca'
 
 let fail = 0, n = 0
 const ok = (c: boolean, m: string) => { n++; if (!c) { fail++; console.error('✗', m) } }
@@ -50,6 +50,38 @@ ok(m.entrato === 3320, `entrato: ${m.entrato} (1220 + 2100; derivato, giroconto 
 ok(m.uscito === 500, `uscito: ${m.uscito} (400 + 100; il nascosto fuori)`)
 ok(m.liberoIn === 0, `libero in: ${m.liberoIn} (t1 legato per colonna, t2 per quota)`)
 ok(m.liberoOut === 400, `libero out: ${m.liberoOut} (t7 non ha bisogno di riga)`)
+
+
+// ── IVA ─────────────────────────────────────────────────────────────────────
+const src: VatSources = {
+  invoices: new Map([['inv1', { vat: 220, total: 1220 }]]),
+  revenue: new Map([['A', { rate: 0.22, applied: true, deductible: 1, gross: 1220 }]]),
+  cost: new Map([
+    ['K', { rate: 0.22, applied: true, deductible: 0.4, gross: 122 }],
+    ['N', { rate: 0.22, applied: false, deductible: 1, gross: 100 }],
+  ]),
+}
+type T = MTx & { invoice_id?: string | null }
+const v1 = vatOf({ ...tx({ id: 'v1', amount: 1220 }), invoice_id: 'inv1' } as T, [], src)
+ok(v1.vat === 220 && v1.via === 'fattura', 'fattura agganciata: IVA scritta sul documento')
+const v2 = vatOf({ ...tx({ id: 'v2', amount: 610 }), invoice_id: 'inv1' } as T, [], src)
+ok(v2.vat === 110, 'pagamento a metà: metà dell\'IVA')
+const v3 = vatOf(tx({ id: 'v3', amount: 1220, revenue_line_id: 'A' }) as T, [], src)
+ok(v3.vat === 220 && v3.via === 'riga', 'riga di ricavo: lordo × aliquota/(1+aliquota)')
+const v4 = vatOf(tx({ id: 'v4', amount: -122, kind: 'pagamento', cost_line_id: 'K' }) as T, [], src)
+ok(v4.vat === 8.8, `costo con detraibilità 40%: ${v4.vat}`)
+const v5 = vatOf(tx({ id: 'v5', amount: -100, kind: 'pagamento', cost_line_id: 'N' }) as T, [], src)
+ok(v5.vat === 0 && v5.basis === 100, 'costo senza IVA: zero, e lo si sa')
+const v6 = vatOf(tx({ id: 'v6', amount: -4077, kind: 'stipendio' }) as T, [], src)
+ok(v6.vat === 0 && v6.via === 'natura' && v6.basis === 4077, 'uno stipendio non ha IVA, ed è una certezza')
+const v7 = vatOf(tx({ id: 'v7', amount: -300, kind: 'pagamento' }) as T, [], src)
+ok(v7.basis === 0 && v7.via === null, 'movimento senza riga né fattura: IVA sconosciuta, non zero')
+const vt = vatTotals([tx({ id: 'a', amount: 1220, revenue_line_id: 'A' }), tx({ id: 'b', amount: -300, kind: 'pagamento' }),
+  tx({ id: 'c', amount: -122, kind: 'pagamento', cost_line_id: 'K' })] as T[], [], src)
+ok(vt.inVat === 220 && vt.outVat === 8.8 && vt.outUnknown === 300 && vt.inUnknown === 0, 'totali: la parte ignota resta dichiarata')
+const lv = vatLever([tx({ id: 'a', amount: 1220, revenue_line_id: 'A', booked_on: '2026-10-05' }),
+  tx({ id: 'old', amount: 1220, revenue_line_id: 'A', booked_on: '2026-06-05' })] as T[], [], src, '2026-10-01', '2026-11-10')
+ok(lv.held === 220, 'leva: conta dal primo trimestre non versato, non da prima')
 
 console.log(fail ? `${fail} su ${n} non passano` : `${n} controlli. Tutti i controlli passano.`)
 process.exit(fail ? 1 : 0)

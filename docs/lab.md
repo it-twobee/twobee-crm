@@ -5,9 +5,11 @@ nel layout, `requireLabAdmin()` in ogni azione). Le nuove versioni delle sezioni
 economiche nascono qui, leggono i dati veri e **non scrivono niente**; finché non
 vengono promosse, quelle in uso non cambiano.
 
-- **Mese** (`/lab/novembre`, §475-§476): piano dai contratti, mobile first. Dal
-  §500 sopra il piano c'è `BancaMese`: cassa del mese dai movimenti veri, righe
-  di entrata e uscita con la copertura di banca, compensi in tre letture.
+- **Mese** (`/lab/novembre`, §500): **solo banca**. Niente maturato, niente
+  spunte, niente piano dai contratti: entrato e uscito sono i movimenti del conto
+  nel mese, uno per uno, ciascuno con la sua IVA e con ciò che lo spiega
+  (fattura, riga di conto economico, personale, o «nessuna»). Sopra: la leva
+  dell'IVA e i compensi dall'incassato.
 - **Progetti** (`/lab/progetti`): una riga per progetto da `projectDeal`. Un
   accordo che copre più progetti non si attribuisce a nessuno (§188): margine n/d.
 - **Fatturazione** (`/lab/fatturazione`): fatture emesse aperte con `isOpen` e
@@ -16,18 +18,30 @@ vengono promosse, quelle in uso non cambiano.
 - **Banca**: non c'è ancora.
 
 ## Il mese letto dalla banca (§500, `lib/mese-banca.ts`)
-Una spunta «incassato» è un'opinione (§226). Qui una riga è incassata solo se i
-movimenti `banca`/`manuale` la coprono **per intero** (quote di `bank_tx_lines`
-prima, poi il legame per colonna); un `derivato` non certifica, i nascosti e i
-giroconti non contano. Una copertura **parziale** non è un incasso: il compenso
-aspetta il resto.
+Contano i movimenti `banca`/`manuale`; un `derivato` nasce da una spunta e non
+certifica, i nascosti (§381) e i giroconti non sono né incasso né spesa.
 
-I compensi usano lo stesso motore e la stessa finestra del conto economico
-(§286, `buildWindow`/`takenIn`), in tre letture della colonna «incassata»:
-maturato · spunte · banca. La differenza banca−spunte è quanto si erogherebbe su
-soldi che l'estratto non conferma. Su ottobre 2026: base 10.825 sulle spunte
-contro 7.700 sulla banca, per due righe spuntate il 14 ottobre senza movimento.
+**L'IVA di un movimento** (`vatOf`) viene, in ordine, dalla **fattura agganciata**
+(IVA scritta sul documento, in proporzione a quanto il movimento ne paga), dalla
+**riga di conto economico** (lordo allocato × aliquota; sui costi per la
+detraibilità §191), dalla **natura** (uno stipendio o un'imposta non hanno IVA).
+Il resto **non è zero, è sconosciuto**: `basis` dice per quanto del movimento si
+sa, e la pagina scrive «IVA n/d» e quanto lordo ne è privo.
+
+**La leva dell'IVA** (`vatLever`) = IVA incassata dai clienti − IVA pagata ai
+fornitori, dal primo trimestre **dopo l'ultimo versamento registrato** in
+`vat_settlements` fino a oggi. È cassa passata dal conto, non il debito fiscale
+(quello si calcola sulle fatture, §325). Un trimestre senza riga non è «versato»:
+a novembre 2026 il 3º (dovuto il 16 novembre) è ancora dentro. Accanto, il saldo
+dei conti senza la leva, e uno scenario al ribasso: se tutta l'uscita non
+agganciata avesse IVA al 22%.
+
+**I compensi** usano il motore e la finestra del conto economico (§286), ma con
+una sola lettura di «incassata»: la riga è pagata solo se i movimenti la coprono
+**per intero** (`lineBank`, `withBankPaid`); una copertura parziale aspetta il
+resto. Competenza del mese prima, erogazione del 20; gli arretrati di mesi
+precedenti non sono inclusi.
 
 Gate: `npx tsx lib/mese-banca.check.ts`. Da fare: proporre gli abbinamenti
-(`matchCandidates`) ai movimenti senza riga — oggi la pagina mostra solo gli
-agganci già fatti.
+(`matchCandidates`) ai movimenti senza fattura né riga — a ottobre 2026 sono
+4.231 € di uscite senza IVA nota.
