@@ -49,6 +49,13 @@ sue righe con base × percentuale = importo, e il commerciale non socio sta a
 parte. `mergeVoci` toglie i doppioni (stessa riga, stesso motivo, stesso mese):
 identici → una sola; pezzi diversi dello stesso fatto → sommati.
 
-Gate: `npx tsx lib/mese-banca.check.ts`. Da fare: proporre gli abbinamenti
-(`matchCandidates`) ai movimenti senza fattura né riga — a ottobre 2026 sono
-4.231 € di uscite senza IVA nota.
+**Proposte per i movimenti senza fattura né riga** (`matchCandidates`, `lib/bank.ts`):
+sotto il movimento compaiono fino a due righe candidate, con punteggio e ragione
+(importo lordo, numero documento, cliente) e l'IVA che avrebbe se fosse quella.
+Sono **proposte**: non si scrive niente, l'aggancio lo conferma una persona
+(§189). Sono candidate solo le righe non già coperte da un movimento vero, e se
+una riga è la prima scelta di più movimenti la pagina dice «contesa da N».
+Su ottobre 2026: 19 movimenti senza riga, 2 con proposta — gli altri non hanno una
+riga di costo a cui agganciarsi, e questo è il dato.
+
+Gate: `npx tsx lib/mese-banca.check.ts`.

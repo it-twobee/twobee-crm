@@ -8,7 +8,7 @@ import {
 } from '@/lib/mese-banca'
 import { payoutPeople, groupRows, REASON } from '@/lib/payout-report'
 import { quarterOf, quarterMonths, quarterLabel, deadlineFor } from '@/lib/vat'
-import { balance, type BankTx } from '@/lib/bank'
+import { balance, matchCandidates, grossOf, type BankTx, type PlLineRef, type MatchCandidate } from '@/lib/bank'
 import { eur2 } from '@/lib/money'
 import { Info, ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -57,13 +57,13 @@ export async function BancaMese({ month, today }: { month: string; today: string
   const [
     { data: txRows }, { data: allocRows }, { data: invRows }, { data: revRows }, { data: costRows },
     { data: accRows }, { data: settl }, { data: pm }, { data: pmPrev },
-    { data: cfg }, { data: partnerRows }, { data: clients }, { data: streams }, { data: sp },
+    { data: cfg }, { data: partnerRows }, { data: clients }, { data: streams }, { data: sp }, { data: allMonths },
   ] = await Promise.all([
     sb.from('bank_transactions')
-      .select('id, account_id, booked_on, amount, source, kind, counterparty, description, revenue_line_id, cost_line_id, no_match_needed, hidden_reason, payslip_id, hr_invoice_id, transfer_pair_id, invoice_id'),
+      .select('id, account_id, booked_on, amount, source, kind, counterparty, description, doc_ref, revenue_line_id, cost_line_id, no_match_needed, hidden_reason, payslip_id, hr_invoice_id, transfer_pair_id, invoice_id'),
     sb.from('bank_tx_lines').select('tx_id, revenue_line_id, cost_line_id, amount'),
     sb.from('invoices').select('id, number, counterparty_name, vat_amount, total'),
-    sb.from('pl_revenue_lines').select('id, month_id, label, amount_net, vat_rate'),
+    sb.from('pl_revenue_lines').select('id, month_id, client_id, label, amount_net, vat_rate'),
     sb.from('pl_cost_lines').select('*'),
     sb.from('bank_accounts').select('id, label, opening_balance'),
     sb.from('vat_settlements').select('year, quarter, to_pay, paid_on'),
@@ -74,6 +74,7 @@ export async function BancaMese({ month, today }: { month: string; today: string
     sb.from('clients').select('id, company_name, display_name, sales_owner_id, sales_owner_name'),
     sb.from('revenue_streams').select('*'),
     sb.from('revenue_stream_projects').select('stream_id, project_id'),
+    sb.from('pl_months').select('id, month'),
   ])
 
   const txs = (txRows ?? []) as unknown as Tx[]
@@ -120,6 +121,40 @@ export async function BancaMese({ month, today }: { month: string; today: string
     if (t.no_match_needed) return 'non richiede una riga'
     return 'nessuna fattura o riga'
   }
+  /* ── Proposte per i movimenti senza fattura né riga (`matchCandidates`) ───
+     Sono proposte: non si scrive niente, la conferma è di una persona (§189).
+     Le righe già coperte da un movimento vero non sono candidate. */
+  const monthOfId = new Map(((allMonths ?? []) as Row[]).map(m => [String(m.id), String(m.month).slice(0, 10)]))
+  const nameOf = new Map(((clients ?? []) as Row[]).map(c => [String(c.id), String(c.display_name || c.company_name)]))
+  const covAllR = lineBank(Array.from(src.revenue, ([id, l]) => ({ id, gross: l.gross })), 'entrata', txs, allocs)
+  const covAllC = lineBank(Array.from(src.cost, ([id, l]) => ({ id, gross: l.gross })), 'uscita', txs, allocs)
+  const pool: PlLineRef[] = [
+    ...((revRows ?? []) as Row[]).map(r => ({
+      id: String(r.id), month: monthOfId.get(String(r.month_id)) ?? '', label: String(r.label),
+      clientName: r.client_id ? nameOf.get(String(r.client_id)) ?? null : null,
+      net: num(r.amount_net), vatRate: num(r.vat_rate),
+      paid: ['coperta', 'eccedente'].includes(covAllR.get(String(r.id))?.state ?? ''), direction: 'in' as const,
+    })),
+    ...((costRows ?? []) as Row[]).map(c => ({
+      id: String(c.id), month: monthOfId.get(String(c.month_id)) ?? '', label: String(c.label),
+      clientName: null, net: num(c.actual) > 0 ? num(c.actual) : num(c.budget),
+      vatRate: c.vat_applied ? num(c.vat_rate) : 0,
+      paid: ['coperta', 'eccedente'].includes(covAllC.get(String(c.id))?.state ?? ''), direction: 'out' as const,
+    })),
+  ]
+  const senzaRiga = here.filter(t => {
+    if (t.no_match_needed || t.payslip_id || t.hr_invoice_id || t.invoice_id) return false
+    if (['stipendio', 'imposta', 'finanziamento', 'commissione'].includes(t.kind)) return false
+    return vatOf(t, allocs, src).via === null
+  })
+  const proposte = new Map<string, MatchCandidate[]>()
+  for (const t of senzaRiga) {
+    const c = matchCandidates(t as unknown as BankTx, pool).slice(0, 2)
+    if (c.length) proposte.set(t.id, c)
+  }
+  const contesa = new Map<string, number>()
+  for (const c of Array.from(proposte.values())) contesa.set(c[0].line.id, (contesa.get(c[0].line.id) ?? 0) + 1)
+
   const MovRow = ({ t }: { t: Tx }) => {
     const v = vatOf(t, allocs, src)
     const parte = v.basis > 0 && v.basis < Math.abs(t.amount) - 0.01
@@ -129,6 +164,17 @@ export async function BancaMese({ month, today }: { month: string; today: string
           <div className="min-w-0">
             <p className="text-sm text-text-primary leading-snug break-words">{t.counterparty ?? t.description}</p>
             <p className="text-2xs text-text-tertiary leading-snug break-words">{t.booked_on.slice(0, 10)} · {t.kind} · {why(t)}</p>
+            {proposte.get(t.id)?.map((c, i) => {
+              const gross = grossOf(c.line)
+              const iva = r2(gross - c.line.net)
+              return (
+                <p key={c.line.id} className={`text-2xs leading-snug break-words mt-1 ${i === 0 ? 'text-text-secondary' : 'text-text-tertiary'}`}>
+                  {i === 0 ? 'Proposta' : 'Oppure'}: {c.line.label}{c.line.clientName ? ` · ${c.line.clientName}` : ''} · {monthLabel(c.line.month).toLowerCase()} · {Math.round(c.score * 100)}% ({c.why.join(', ')})
+                  {iva > 0 && <> · IVA {eur2(iva)} se è questa</>}
+                  {i === 0 && (contesa.get(c.line.id) ?? 0) > 1 && <span className="text-warning"> · contesa da {contesa.get(c.line.id)} movimenti</span>}
+                </p>
+              )
+            })}
           </div>
           <div className="text-right whitespace-nowrap">
             <p className="text-sm font-semibold text-text-primary tabular-nums">{eur2(Math.abs(t.amount))}</p>
@@ -323,6 +369,17 @@ export async function BancaMese({ month, today }: { month: string; today: string
       </section>
 
       <div className="grid gap-3 lg:grid-cols-2 lg:items-start">
+        {senzaRiga.length > 0 && (
+          <div className="lg:col-span-2">
+            <Note>
+              <p>
+                <strong>{senzaRiga.length}</strong> movimenti di {monthLabel(month).toLowerCase()} non hanno né fattura né riga: per{' '}
+                <strong>{proposte.size}</strong> c&apos;è una proposta (<code>matchCandidates</code>: importo lordo, numero documento, nome del cliente).
+                Sono proposte e non si scrive niente: l&apos;aggancio lo conferma una persona.
+              </p>
+            </Note>
+          </div>
+        )}
         <Box title="Entrate" total={eur2(sum(entrate))} note={`${entrate.length} movimenti`}>
           {entrate.length === 0 ? <p className="px-4 py-5 text-sm text-text-tertiary">Nessun incasso in questo mese.</p> : entrate.map(t => <MovRow key={t.id} t={t} />)}
         </Box>
