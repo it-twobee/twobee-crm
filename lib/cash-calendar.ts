@@ -278,6 +278,11 @@ export function bandOf(due: string, today: string): Exclude<Band, 'pagato'> {
     : 'in_ritardo'
 }
 
+/** Il termine delle risorse è condiviso con il Lab, senza duplicare il calendario. */
+export function nextMonth20(month: string): string {
+  return `${shiftMonth(month, 1).slice(0, 8)}20`
+}
+
 /** Quando i soldi sono attesi. `due_date` sulla riga è un'eccezione decisa da una persona. */
 export function dueOf(l: CashLine, ctx: CashCtx = {}): string {
   if (l.due_date) return l.due_date
@@ -285,7 +290,7 @@ export function dueOf(l: CashLine, ctx: CashCtx = {}): string {
   switch (termsOf(l)) {
     case 'giorni_15': case 'giorni_30': case 'giorni_60': case 'giorni_90':
       return dueFromIssue(first, termsOf(l) as 'giorni_15')
-    case 'mese_succ_20': return `${shiftMonth(first, 1).slice(0, 8)}20`
+    case 'mese_succ_20': return nextMonth20(first)
     case 'a_incasso': {
       const key = l.project_id ? `${l.project_id}|${first}` : ''
       return ctx.collection?.get(key) ?? endOfMonth(first)

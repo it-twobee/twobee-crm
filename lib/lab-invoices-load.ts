@@ -1,8 +1,8 @@
 import 'server-only'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { readLabRows } from '@/lib/lab-read'
-import { INVOICE_COLUMNS, toInvoices } from '@/lib/invoices-load'
-import type { LabInvoice, LabInvoiceTx } from '@/lib/lab-invoices'
+import { INVOICE_COLUMNS } from '@/lib/invoices-load'
+import { toLabInvoices, type LabInvoice, type LabInvoiceTx } from '@/lib/lab-invoices'
 
 const numeric = (v: unknown): number => {
   if (v == null || v === '' || !Number.isFinite(Number(v))) throw new Error('Valore mancante')
@@ -22,17 +22,7 @@ export async function loadLabInvoices(today: string): Promise<
       readLabRows('payment_allocations', 'id,tx_id', today),
       readLabRows('bank_accounts', 'id,label,currency', today),
     ])
-    for (const r of rows) {
-      for (const key of ['taxable', 'vat_amount', 'total', 'withholding']) numeric(r[key])
-      if (!['emessa', 'ricevuta'].includes(String(r.direction)) || ![1, -1].includes(Number(r.sign)) || !r.issued_on || !r.currency) {
-        throw new Error('Documento incompleto')
-      }
-    }
-    const meta = new Map(rows.map(r => [String(r.id), r]))
-    const invoices = toInvoices(rows).map(i => {
-      const row = meta.get(i.id)!
-      return { ...i, currency: String(row.currency), withholding: numeric(row.withholding), declaredPaidAmount: row.paid_amount == null ? null : numeric(row.paid_amount) }
-    })
+    const invoices = toLabInvoices(rows)
     const allocated = new Set(allocations.map(a => String(a.tx_id)))
     const accountById = new Map(accounts.map(a => [String(a.id), a]))
     const txs: LabInvoiceTx[] = bank.map(t => {

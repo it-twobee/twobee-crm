@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Risorse & tasse nel Laboratorio — 14 novembre 2026
+
+Quarta capacità in verifica: /lab/risorse, super admin, sola lettura. Mese iniziale precedente a quello corrente; competenza e data bancaria separate, pagamento risorse atteso entro il 20 del mese successivo. Netto concordato attuale distinto da netto del cedolino, costo e quota bancaria. Un F24 aggregato non certifica gli oneri della singola persona. Professionisti collegati alle fatture ricevute canoniche, senza creare un secondo costo. Documenti privati scaricabili solo dopo il gate Lab, anche sulle API; profili disattivati esclusi.
+
+Fatti verificati con SELECT di produzione il 14 novembre: cinque risorse, sette cedolini HR, nove PDF cedolino, sei collegamenti di distinta, tre fatture HR, tre F24 con undici componenti. Nove registrazioni di documenti personali risultano senza file collegato: la pagina lo dichiara e non offre download inesistenti. Parametri paghe 2026 non confermati: gli oneri che ne dipendono restano stimati. Letture separate, nessuna garanzia di snapshot. Mancanze e legami ambigui producono n/d. Nessuna migration o scrittura sui dati.
+
+Verifica: TypeScript, 133 gate in Europe/Rome, controllo risorse anche UTC e America/Los_Angeles, build di produzione. HTTP anonimo: pagina 307 verso login, download 403 con no-store. Restano aperte prova visiva autenticata, matrice ruoli autenticati, completezza documentale e confronto vecchio/nuovo sullo stesso snapshot. Nessuna promozione delle sezioni Economics. Prossimo modulo: IVA.
+
+
 ## Recupero dei chunk dopo un cambio versione — 2026-11-14
 
 Segnalato `Loading chunk 840 failed` nella Fatturazione del Lab. Verifica HTTP:

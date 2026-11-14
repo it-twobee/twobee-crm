@@ -9,13 +9,13 @@ import { getViewer } from '@/lib/auth'
 export const LAB_DENIED = 'Permesso negato: il laboratorio è del super admin'
 
 export async function hasLabAccess(): Promise<boolean> {
-  const { isSuperAdmin } = await getViewer()
-  return isSuperAdmin
+  const { isSuperAdmin, profile } = await getViewer()
+  return isSuperAdmin && profile?.is_active !== false
 }
 
 export async function requireLabAdmin(): Promise<string> {
-  const { user, isSuperAdmin } = await getViewer()
+  const { user, isSuperAdmin, profile } = await getViewer()
   if (!user) throw new Error('Non autenticato')
-  if (!isSuperAdmin) throw new Error(LAB_DENIED)
+  if (!isSuperAdmin || profile?.is_active === false) throw new Error(LAB_DENIED)
   return user.id
 }

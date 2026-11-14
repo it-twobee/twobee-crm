@@ -1,12 +1,22 @@
 # Progetto dei moduli Economics
 
-Progetto avviato il 12 novembre 2026, approvato il 14 novembre 2026. **Step 1–9 confermati; avviata l'esecuzione autorizzata nel Laboratorio.** Il disegno corrente parte dal cliente e dalla catena accordo → fattura → banca. La precedente architettura a sette moduli è archiviata e non è il piano da implementare. Accordi, Banca e Fatturazione in verifica, nessuna promozione, migration o scrittura sui dati di produzione. Pubblicazione del lavoro Lab su `main` autorizzata dall'utente dopo la verifica locale.
+Progetto avviato il 12 novembre 2026, approvato il 14 novembre 2026. **Step 1–9 confermati; avviata l'esecuzione autorizzata nel Laboratorio.** Il disegno corrente parte dal cliente e dalla catena accordo → fattura → banca. La precedente architettura a sette moduli è archiviata e non è il piano da implementare. Accordi, Banca, Fatturazione e Risorse & tasse in verifica, nessuna promozione, migration o scrittura sui dati di produzione. Pubblicazione del lavoro Lab su `main` autorizzata dall'utente dopo la verifica locale.
 
 **Lettura rapida:** gli Step 1–5 descrivono l'esperienza richiesta; lo Step 6 definisce moduli e dati; gli Step 7–8 fissano promozione e controlli; lo Step 9 organizza l'esecuzione e raccoglie le decisioni residue. Il materiale dopo «Archivio non prescrittivo» conserva le evidenze iniziali e non sostituisce il piano corrente. L'approvazione del progetto non equivale all'autorizzazione a implementarlo.
 
 ## Avvio esecutivo autorizzato — 14 novembre 2026
 
 **Nuovo mandato dell'utente:** progetto approvato; avviare i passi iniziali e rifare il Laboratorio, sostituendo gradualmente le sezioni esistenti quando pronte. Questo incarico autorizza le modifiche applicative necessarie al Lab e supera il precedente limite di scrivere soltanto questo documento. Restano DB in sola lettura, Lab senza scritture, gate, cronologia e criteri di promozione approvati. L'approvazione del progetto e l'incarico esecutivo sono due eventi distinti. Nessuna promozione viene dichiarata dal solo avvio del lavoro.
+
+## Risorse & tasse nel Laboratorio — 14 novembre 2026
+
+Quarta capacità in verifica: /lab/risorse, super admin, sola lettura. Mese iniziale precedente a quello corrente; competenza e data bancaria separate, pagamento risorse atteso entro il 20 del mese successivo. Netto concordato attuale distinto da netto del cedolino, costo e quota bancaria. Un F24 aggregato non certifica gli oneri della singola persona. Professionisti collegati alle fatture ricevute canoniche, senza creare un secondo costo. Documenti privati scaricabili solo dopo il gate Lab, anche sulle API; profili disattivati esclusi.
+
+Fatti verificati con SELECT di produzione il 14 novembre: cinque risorse, sette cedolini HR, nove PDF cedolino, sei collegamenti di distinta, tre fatture HR, tre F24 con undici componenti. Nove registrazioni di documenti personali risultano senza file collegato: la pagina lo dichiara e non offre download inesistenti. Parametri paghe 2026 non confermati: gli oneri che ne dipendono restano stimati. Letture separate, nessuna garanzia di snapshot. Mancanze e legami ambigui producono n/d. Nessuna migration o scrittura sui dati.
+
+Verifica: TypeScript, 133 gate in Europe/Rome, controllo risorse anche UTC e America/Los_Angeles, build di produzione. HTTP anonimo: pagina 307 verso login, download 403 con no-store. Restano aperte prova visiva autenticata, matrice ruoli autenticati, completezza documentale e confronto vecchio/nuovo sullo stesso snapshot. Nessuna promozione delle sezioni Economics. Prossimo modulo: IVA.
+
+Riferimenti verificati: calcoli e prove in `lib/lab-resources.ts:1` e `lib/lab-resources.check.ts:1`; fonti e gate in `lib/lab-resources-load.ts:16`; documenti protetti in `app/api/lab/risorse/documenti/[id]/route.ts:11`; interfaccia in `app/(dashboard)/lab/risorse/page.tsx:1`. I due registri cedolini restano distinti e si raccordano tramite profilo esplicito, senza confronto dei nomi. Restano da progettare lo storico del netto concordato e l'attribuzione delle quote professionisti; nessuna certificazione anticipata.
 
 ### Dossier iniziale: fatti letti e limiti
 
@@ -37,7 +47,7 @@ Progetto avviato il 12 novembre 2026, approvato il 14 novembre 2026. **Step 1–
 
 Questa capacità è **in verifica**, non «promossa». Nessuna sezione Economics in uso è sostituita e nessuna nuova conferma/import è attivata. La prova visiva autenticata e dei permessi dei diversi ruoli resta aperta: il browser integrato non ha sessioni disponibili; la richiesta HTTP anonima a `/lab/banca` restituisce redirect 307 a `/login`.
 
-**Riferimenti implementativi verificati:** sei ingressi in `app/(dashboard)/lab/page.tsx:6`; nuova pagina in `app/(dashboard)/lab/banca/page.tsx:11`; gate del loader in `lib/lab-bank-load.ts:24`, gate prima del client di servizio in `lib/lab-read.ts:8` e paginazione in `lib/lab-read.ts:12`; calcoli e raccordo in `lib/lab-bank.ts:37`. Alla prima consegna Banca: **129/129 gate passati con TZ Europe/Rome**, incluso il nuovo controllo; gate Banca passato anche con UTC e America/Los_Angeles. TypeScript senza errori; manifest e lockfile invariati. Verifiche documentali/token superate. Questi esiti non certificano copertura degli estratti, permessi autenticati o resa visiva.
+**Riferimenti implementativi verificati:** sei ingressi in `app/(dashboard)/lab/page.tsx:6`; nuova pagina in `app/(dashboard)/lab/banca/page.tsx:11`; gate del loader in `lib/lab-bank-load.ts:24`, gate prima del client di servizio in `lib/lab-read.ts:13` e paginazione in `lib/lab-read.ts:19`; calcoli e raccordo in `lib/lab-bank.ts:37`. Alla prima consegna Banca: **129/129 gate passati con TZ Europe/Rome**, incluso il nuovo controllo; gate Banca passato anche con UTC e America/Los_Angeles. TypeScript senza errori; manifest e lockfile invariati. Verifiche documentali/token superate. Questi esiti non certificano copertura degli estratti, permessi autenticati o resa visiva.
 
 **Prossima verifica necessaria:** estratti originali e perimetro dei due conti, lettura autenticata della nuova pagina e confronto ripetibile con la lettura attuale; poi registro documentale/quote condiviso di Banca e Fatturazione. Nessun saldo o certificazione verrà forzato per anticipare questa sequenza.
 
@@ -45,7 +55,7 @@ Questa capacità è **in verifica**, non «promossa». Nessuna sezione Economics
 
 **Avanzamento successivo autorizzato:** dopo il primo checkpoint applicativo l'utente conferma di procedere. La nuova `/lab/fatturazione` legge emesse e ricevute, mantiene ricerca e filtri su tutte le date e separa stato del registro e riscontro bancario. La precedente pagina, limitata alle emesse, è conservata in `/lab/fatturazione/precedente` per il confronto.
 
-**Fatti verificati sul repository:** il nuovo loader riusa il mapper `toInvoices` e i motori `invoiceStatus`, `isOpen`, `txCandidates`, senza cambiare le regole delle pagine in uso (`lib/lab-invoices-load.ts:12`, `lib/lab-invoices.ts:13`). La lettura paginata e protetta è condivisa con Banca in `lib/lab-read.ts:7`. Fattura e movimento si aprono reciprocamente sul contesto preciso. Note di credito/debito conservano i riferimenti e vengono risolte prima dei filtri; una nota di debito non annulla l'originale.
+**Fatti verificati sul repository:** il nuovo loader riusa il mapper `toInvoices` e i motori `invoiceStatus`, `isOpen`, `txCandidates`, senza cambiare le regole delle pagine in uso (`lib/lab-invoices-load.ts:12`, `lib/lab-invoices.ts:33`). La lettura paginata e protetta è condivisa con Banca in `lib/lab-read.ts:12`. Fattura e movimento si aprono reciprocamente sul contesto preciso. Note di credito/debito conservano i riferimenti e vengono risolte prima dei filtri; una nota di debito non annulla l'originale.
 
 **Scelta di provenienza:** «pagata nel registro» non è «pagamento provato». I bonifici di origine banca direttamente collegati sono esposti con data, conto, importo e valuta; manuali/derivati separati. Il loro totale non viene presentato come quota della fattura o come residuo: cumulativi, ritenute, acconti e storni parziali richiedono il registro unificato. Il residuo certificato resta n/d. Le proposte escludono movimenti impegnati nel registro quote o in altri legami, nascosti, giroconti, finanziamenti, stipendi, imposte, valute non confrontabili e fatti futuri; nessun aggancio viene salvato. Le contese sono calcolate su entrambe le direzioni prima dei filtri visivi. Niente proposta sul vecchio lordo di un documento stornato parzialmente.
 
@@ -93,7 +103,7 @@ dimostrano completezza degli originali né riconciliazione dei saldi.
 
 **Riferimenti:** `lib/lab-deals.ts:3` per stati, `lib/lab-deals.ts:15` per copertura e
 `lib/lab-deals.ts:31` per selezione delle righe della singola rata;
-`lib/lab-deals-load.ts:17` per il gate; `lib/lab-read.ts:7` per paginazione anche
+`lib/lab-deals-load.ts:17` per il gate; `lib/lab-read.ts:12` per paginazione anche
 su chiavi composte; `lib/lab-deals.check.ts:1` per stati,
 null/zero, copertura ambigua e divieto di assegnare la fattura di una rata alle
 altre. Nessuna sezione in uso sostituita. Esiti finali di questa capacità al

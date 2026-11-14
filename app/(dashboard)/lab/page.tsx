@@ -7,7 +7,7 @@ const SEZIONI: { nome: string; nota: string; href?: string }[] = [
   { nome: 'Accordi', nota: 'Cliente, progetto, patto, rate e subappalto. Prima lettura in verifica.', href: '/lab/accordi' },
   { nome: 'Banca', nota: 'Movimenti, saldi e fonti di Banco BPM e Vivid. Prima lettura in verifica.', href: '/lab/banca' },
   { nome: 'Fatturazione', nota: 'Emesse e ricevute: registro, rettifiche e riscontri bancari distinti. In verifica.', href: '/lab/fatturazione' },
-  { nome: 'Risorse & tasse', nota: 'Dipendenti e freelance, documenti mensili, versamenti e area IVA.' },
+  { nome: 'Risorse & tasse', nota: 'Dipendenti e freelance, costo del mese, documenti e F24. In verifica.', href: '/lab/risorse' },
   { nome: 'Conto economico', nota: 'Effettivo e Maturato, compensi soci e PDF dalla stessa fonte.' },
   { nome: 'Previsionale', nota: 'Trend, criticità e scenari growth/digital con ipotesi esplicite.' },
 ]

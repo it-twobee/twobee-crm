@@ -1,5 +1,14 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Risorse & tasse nel Laboratorio — 14 novembre 2026
+
+Quarta capacità in verifica: /lab/risorse, super admin, sola lettura. Mese iniziale precedente a quello corrente; competenza e data bancaria separate, pagamento risorse atteso entro il 20 del mese successivo. Netto concordato attuale distinto da netto del cedolino, costo e quota bancaria. Un F24 aggregato non certifica gli oneri della singola persona. Professionisti collegati alle fatture ricevute canoniche, senza creare un secondo costo. Documenti privati scaricabili solo dopo il gate Lab, anche sulle API; profili disattivati esclusi.
+
+Fatti verificati con SELECT di produzione il 14 novembre: cinque risorse, sette cedolini HR, nove PDF cedolino, sei collegamenti di distinta, tre fatture HR, tre F24 con undici componenti. Nove registrazioni di documenti personali risultano senza file collegato: la pagina lo dichiara e non offre download inesistenti. Parametri paghe 2026 non confermati: gli oneri che ne dipendono restano stimati. Letture separate, nessuna garanzia di snapshot. Mancanze e legami ambigui producono n/d. Nessuna migration o scrittura sui dati.
+
+Verifica: TypeScript, 133 gate in Europe/Rome, controllo risorse anche UTC e America/Los_Angeles, build di produzione. HTTP anonimo: pagina 307 verso login, download 403 con no-store. Restano aperte prova visiva autenticata, matrice ruoli autenticati, completezza documentale e confronto vecchio/nuovo sullo stesso snapshot. Nessuna promozione delle sezioni Economics. Prossimo modulo: IVA.
+
+
 Ambiente di prova **solo per il super admin** (`lib/lab-guard.ts`: `hasLabAccess`
 nel layout, `requireLabAdmin()` in ogni azione). Le nuove versioni delle sezioni
 economiche nascono qui, leggono i dati veri e **non scrivono niente**; finché non
@@ -37,7 +46,7 @@ vengono promosse, quelle in uso non cambiano.
 ## Avvio del progetto Economics — 14 novembre 2026
 
 Il progetto `docs/progetto-moduli-economics.md` è approvato. La home `/lab`
-presenta i sei moduli concordati, con Accordi, Banca e Fatturazione in verifica;
+presenta i sei moduli concordati, con Accordi, Banca, Fatturazione e Risorse & tasse in verifica;
 gli esperimenti precedenti restano consultabili a parte. Gli altri moduli
 sono indicati come da costruire, senza link a schermate incomplete.
 

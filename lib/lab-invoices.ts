@@ -1,6 +1,26 @@
 import { invoiceStatus, isOpen, isVoided, partlyVoided, txCandidates, type Invoice, type TxRef } from '@/lib/invoices'
+import { toInvoices } from '@/lib/invoices-load'
 
 export type LabInvoice = Invoice & { currency: string; withholding: number; declaredPaidAmount: number | null }
+
+export function toLabInvoices(rows: Record<string, unknown>[]): LabInvoice[] {
+  const numeric = (v: unknown) => {
+    if (v == null || v === '' || !Number.isFinite(Number(v))) throw new Error('Valore mancante')
+    return Number(v)
+  }
+  for (const row of rows) {
+    for (const key of ['taxable', 'vat_amount', 'total', 'withholding']) numeric(row[key])
+    if (!['emessa', 'ricevuta'].includes(String(row.direction)) || ![1, -1].includes(Number(row.sign)) || !row.issued_on || !row.currency) {
+      throw new Error('Documento incompleto')
+    }
+  }
+  const meta = new Map(rows.map(row => [String(row.id), row]))
+  return toInvoices(rows).map(invoice => {
+    const row = meta.get(invoice.id)!
+    return { ...invoice, currency: String(row.currency), withholding: numeric(row.withholding),
+      declaredPaidAmount: row.paid_amount == null ? null : numeric(row.paid_amount) }
+  })
+}
 export type LabInvoiceTx = TxRef & {
   accountId: string
   currency: string
