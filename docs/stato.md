@@ -1,5 +1,29 @@
 # Dove siamo
 
+## Recupero dei chunk dopo un cambio versione — 2026-11-14
+
+Segnalato `Loading chunk 840 failed` nella Fatturazione del Lab. Verifica HTTP:
+produzione sul commit `813dd42`, asset segnalato disponibile con HTTP 200.
+Questo non prova la causa del guasto precedente: cambio versione/cache o
+indisponibilità transitoria restano ipotesi. Il difetto certo del recupero era
+il solo `reset()`, che non ricarica il runtime e i file della pagina.
+
+Radice, dashboard, portale e fallback globale ora riconoscono gli errori di
+chunk JS/CSS e import dinamico. Una sola ricarica automatica per build e scheda,
+memorizzata prima del reload; niente ricarica automatica offline o se lo
+storage è negato. Poi resta «Ricarica pagina». Errori economici, di permessi e
+lettura dati continuano a usare il normale «Riprova». Il layout intercetta
+anche le rejection di chunk durante le navigazioni. `deploymentId` usa il
+commit già disponibile nel build; non equivale a conservare asset dei vecchi
+container. Nessun permesso ampliato e nessun dato riscritto.
+
+Gate: `lib/chunk-recovery.check.ts` per riconoscimento, offline, storage negato,
+eventi ripetuti, asset diversi nella stessa build e nuova build. La prova nel
+browser autenticato resta distinta dai test del recupero e dai controlli HTTP.
+Verifica locale: TypeScript e 131 gate passati; build di produzione isolato
+completato, tutte le dipendenze statiche dei tre percorsi Lab Banca/Fatturazione
+presenti nel manifest e su disco. Server di sviluppo fermato prima del build.
+
 ## Progetto Economics approvato: Banca e Fatturazione nel Lab — 2026-11-14
 
 La home `/lab` segue il disegno a sei moduli. `/lab/banca` avvia la nuova

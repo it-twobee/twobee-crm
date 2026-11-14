@@ -3,6 +3,7 @@ import { Inter, League_Spartan } from 'next/font/google'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { ThemedToaster } from '@/components/theme/ThemedToaster'
 import { MemoriaPagine } from '@/components/shared/MemoriaPagine'
+import { RecuperoChunk } from '@/components/shared/RecuperoChunk'
 import './globals.css'
 
 const inter = Inter({
@@ -45,6 +46,7 @@ export default function RootLayout({
       </head>
       <body className="bg-background antialiased">
         <ThemeProvider>
+          <RecuperoChunk />
           {children}
           <ThemedToaster />
           <MemoriaPagine />

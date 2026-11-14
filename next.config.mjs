@@ -14,6 +14,7 @@ const buildSha = process.env.COOLIFY_GIT_COMMIT
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  deploymentId: buildSha ? String(buildSha) : undefined,
   env: {
     BUILD_SHA: buildSha ? String(buildSha).slice(0, 12) : '',
     BUILD_TIME: new Date().toISOString(),
