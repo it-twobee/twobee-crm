@@ -1,5 +1,31 @@
 # Progetto dei moduli Economics
 
+## Conto economico nel Laboratorio — 14 novembre 2026
+
+Prima capacità in verifica: /lab/conto-economico, aperta su Effettivo e sul mese precedente. Maturato legge tutta la competenza, mostra inizialmente solo le righe con riscontri aperti e mantiene gli arretrati separati dai totali del mese. Nessuna preparazione, chiusura o sincronizzazione delle righe viene eseguita. Nessuna sezione Economics sostituita.
+
+Effettivo: soli movimenti di origine banca dei conti principali EUR, nascosti inclusi. Giroconti classificati fuori dai flussi verso terzi e nel raccordo per conto, sottoconti separati. Flussi e saldi ricostruiti non sono saldi consolidati certificati: estratti completi, coppie simmetriche e ancore di saldo restano da verificare. L'assenza di record non diventa entrato/uscito zero. Riferimenti: lib/lab-economics.ts:18 e app/(dashboard)/lab/conto-economico/page.tsx:14.
+
+Maturato: righe dal mapper unico lib/pl-rows.ts, occorrenze attese da linesForMonth/fallsIn. Una ricorrenza mancante non viene creata o sommata arbitrariamente al registro. contractDrift segnala le divergenze nei mesi aperti e blocca quote incoerenti; i mesi chiusi conservano la fotografia. Il filtro degli incompleti non entra nel calcolo del totale. Valori incompleti mantengono n/d e parte nota distinta; costi da piano/organico restano registro/stima, senza aggiungere di nuovo il personale o il freelance. Comparazione documentale HR completa ancora aperta. Riferimento: lib/lab-economics.ts:102.
+
+Compensi soci e PDF: tre persone sempre visibili. Parametri dalla configurazione, computeMonth per le quote e placeLine per la finestra, con costi esterni di competenza e denominatore intero. Gli incassi sono rivalutati dalle fonti bancarie ammissibili: niente manuali, derivati, giroconti o dichiarazioni senza prova. Registri equivalenti deduplicati; registri in conflitto sospesi. La data è il primo raggiungimento della copertura, non l'ultimo pagamento eccedente. Documenti incoerenti, ritenute, anticipi oltre il limite documentato, valute o dati incompleti impediscono la certificazione. Le righe temporalmente fuori finestra non sono descritte come bonifici soci già eseguiti. Regolato e da versare n/d fino al raccordo delle spettanze e dei benefici già attribuiti.
+
+Il PDF è binario e scaricabile, qualificato Bozza da completare. Pagina e download usano lo stesso payload: fotografia firmata per utente, scadenza 15 minuti, inviata via form POST per non esporre importi nell'URL. La route verifica il super admin attivo prima di trattare il contenuto; non rilegge/ricalcola l'economia e non scrive dati, log o contatori. Nessun invio automatico. Riferimenti: lib/lab-economics-report.ts:8, lib/lab-economics-token.ts:5 e app/api/lab/economics/compensi/route.ts:9. Campione sintetico renderizzato e ispezionato su nove pagine, importi senza ritorni a capo isolati e righe non spezzate fra pagine.
+
+Fatti DB letti il 14 novembre con SELECT paginate separate, non snapshot transazionale: 8 mesi, 62 ricavi, 128 costi, 18 accordi, 20 rate, 21 relazioni accordo/progetto, 49 voci costo, 159 quote correnti, 166 collegamenti legacy e 338 movimenti su cinque conti/sottoconti. Una configurazione e tre soci attivi, coerenti con le percentuali documentate. Il primo audit ad hoc usava erroneamente id per la tabella di copertura; corretto e ripetuto sulle chiavi stream_id,project_id, senza dedurre un archivio vuoto dall'errore.
+
+| Periodo osservato | Flussi registrati dei principali EUR senza giroconti classificati | Registro di competenza, parte nota | Limiti osservati |
+|---|---|---|---|
+| Ottobre 2026 | Entrato 13.294,36 €, uscito 18.227,87 €, variazione -4.933,51 €. | Ricavi 18.025,00 €, costi 14.924,40 €. | Tre occorrenze ricavo e sei costo non trovate; sei lati di trasferimento non riconciliati nel perimetro. |
+| Novembre fino al 14 | Entrato 12.237,00 €, uscito 4.815,78 €, variazione +7.421,22 €. | Ricavi 29.200,00 €, costi 11.775,30 €. | Tre occorrenze ricavo e sei costo non trovate; quattro lati di trasferimento non riconciliati. Mese parziale. |
+
+Sono inoltre verificate divergenze fra righe dei mesi aperti e accordi, che il nuovo blocco non corregge automaticamente. Nell'intero storico letto 43 righe hanno registri concorrenti; questo conteggio non è riferito solo a ottobre e non dimostra quale registro sia errato. Nessun riallineamento automatico. Le mancanze mantengono n/d i compensi completi dei mesi osservati: il download resta una bozza che le dichiara. La finestra di ottobre è prevista al 20 novembre, con taglio effettivamente osservato al 14 novembre; non anticipa incassi futuri.
+
+Gate nuovo lib/lab-economics.check.ts: coperture, capienza globale, registri equivalenti/contesi, date del primo completamento, competenza vs cassa, costo digital con due rate e una incassata, identità delle tre persone, parametri mancanti, firma manomessa/scaduta/altro utente e PDF binario. TypeScript e 135 gate passati; nuovo gate anche in UTC e America/Los_Angeles. Build finale passata; sei chunk HTTP 200, tab anonimi 307 verso login e POST PDF anonima 403 con private, no-store. Il PDF è stato verificato anche con rettifiche sintetiche negative, conservando i segni. Browser integrato senza sessioni: nessuna prova visiva autenticata o matrice ruoli dichiarata.
+
+Continuità operativa: [consegne per Claude Code](passaggio-economics-claude.md). Prima di promuovere: risolvere l'autorità dei registri concorrenti, attribuire le occorrenze mancanti e ricostruire i regolamenti soci; poi confronto sullo stesso snapshot, permessi autenticati e prova d'uso. Non passare automaticamente al Simulatore prima del checkpoint dell'utente.
+
+
 ## IVA nel Laboratorio — 14 novembre 2026
 
 La vista /lab/iva è raggiungibile da Risorse & tasse. Sola lettura, super admin, nessuna nuova conferma o scrittura. Quattro informazioni: componente IVA versata in banca nel periodo, residuo provato, scadenza ordinaria con giorni civili Europe/Rome, leva utilizzata. Si apre sul primo periodo scaduto con riscontri ancora aperti; il passare della scadenza non chiude l'obbligo e paid_on non certifica un pagamento.

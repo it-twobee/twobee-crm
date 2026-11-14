@@ -1,5 +1,12 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Conto economico nel Laboratorio — 14 novembre 2026
+
+Nuovo ingresso /lab/conto-economico: Effettivo dai movimenti, Maturato dal registro con occorrenze mancanti, area dei tre soci e PDF binario della stessa fotografia. Sola lettura, super admin, nessuna promozione. I compensi completi di ottobre/novembre restano n/d: tre occorrenze ricavo e sei costo da raccordare, registri bancari concorrenti nello storico. Non sono somme pronte da bonificare.
+
+Dossier e riferimenti in [progetto Economics](progetto-moduli-economics.md), sezione «Conto economico nel Laboratorio». [Passaggio a Claude Code](passaggio-economics-claude.md) pronto per un altro terminale. TypeScript, 135 gate e build passati; sei chunk HTTP 200, pagine anonime 307 verso login e PDF anonimo 403/no-store. Prova autenticata ancora aperta.
+
+
 ## IVA nel Laboratorio — 14 novembre 2026
 
 Nuovo ingresso /lab/iva da Risorse & tasse: dovuto, riscontri del versamento, scadenza e giorni, IVA passata dai conti. Sola lettura, super admin; nessuna promozione o scrittura. Modello prima della stima esistente, fatture come confronto. Scaduti mantenuti; paid_on non certifica il versamento. F24 misti con compensazioni non sono ripartiti automaticamente.
@@ -52,7 +59,7 @@ vengono promosse, quelle in uso non cambiano.
 ## Avvio del progetto Economics — 14 novembre 2026
 
 Il progetto `docs/progetto-moduli-economics.md` è approvato. La home `/lab`
-presenta i sei moduli concordati, con Accordi, Banca, Fatturazione e Risorse & tasse in verifica;
+presenta i sei moduli concordati, con Accordi, Banca, Fatturazione, Risorse & tasse e Conto economico in verifica;
 gli esperimenti precedenti restano consultabili a parte. Gli altri moduli
 sono indicati come da costruire, senza link a schermate incomplete.
 
