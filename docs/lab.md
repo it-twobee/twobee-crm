@@ -12,10 +12,52 @@ vengono promosse, quelle in uso non cambiano.
   dell'IVA e i compensi dall'incassato.
 - **Progetti** (`/lab/progetti`): una riga per progetto da `projectDeal`. Un
   accordo che copre più progetti non si attribuisce a nessuno (§188): margine n/d.
-- **Fatturazione** (`/lab/fatturazione`): fatture emesse aperte con `isOpen` e
-  `invoiceStatus`, movimento candidato da `txCandidates`. Il caricamento è
-  `lib/invoices-load.ts`, lo stesso della pagina in uso.
-- **Banca**: non c'è ancora.
+- **Fatturazione** (`/lab/fatturazione`): nuova lettura emesse/ricevute in verifica,
+  con ricerca e filtri su registro, note e riscontri. Mantiene `isOpen`,
+  `invoiceStatus`, `txCandidates` e il mapper `lib/invoices-load.ts` condivisi con
+  la pagina in uso. Distingue data di pagamento nel registro e movimenti di
+  origine banca; residuo certificato n/d finché quote/ritenute/rettifiche non
+  sono provate. Proposte senza scritture, escluse le somme già impegnate e i
+  movimenti non idonei; contese dichiarate. L'esperimento precedente è in
+  `/lab/fatturazione/precedente`.
+- **Banca** (`/lab/banca`): prima lettura del nuovo progetto Economics, **in verifica**.
+  Conti principali e sottoconti separati, movimenti lordi per mese, saldo ricostruito
+  da `balance` e confronto con il saldo dichiarato alla sua data. Nascosti e
+  giroconti restano nella cassa; manuali/derivati esclusi. Riferimenti diretti
+  non equivalgono a copertura integrale: residuo riconciliato e consolidato n/d.
+  Nessun import, aggancio o modifica. Gate esplicito `requireLabAdmin` anche nel
+  loader, paginazione con conteggio esatto, errore distinto da archivio vuoto.
+
+## Avvio del progetto Economics — 14 novembre 2026
+
+Il progetto `docs/progetto-moduli-economics.md` è approvato. La home `/lab`
+presenta i sei moduli concordati, con Banca e Fatturazione in verifica;
+gli esperimenti precedenti restano consultabili a parte. Gli altri moduli
+sono indicati come da costruire, senza link a schermate incomplete.
+
+La nuova Banca legge tutti i conti presenti, inclusi i sottoconti dei soci,
+senza dedurre il perimetro dai nomi o sommare padre e figli. Il saldo è
+**ricostruito dai record**, non certificato come completo: la coincidenza con
+un estratto passato non dimostra la copertura dei mesi seguenti. Il loader
+`lib/lab-bank-load.ts` è server-only e applica il gate. La lettura paginata
+condivisa `lib/lab-read.ts`, usata anche da `lib/lab-invoices-load.ts`, verifica
+di nuovo `requireLabAdmin` prima del client di servizio e usa soltanto SELECT.
+Le letture paginate non sono una transazione:
+il confronto formale e la promozione richiedono ancora la verifica prevista
+nel progetto. Nessuna sezione `/economics/*` è stata sostituita.
+
+Gate: `TZ=Europe/Rome npx tsx lib/lab-bank.check.ts` e
+`TZ=Europe/Rome npx tsx lib/lab-invoices.check.ts`; casi di data anche con
+`TZ=UTC` e `TZ=America/Los_Angeles`. Le verifiche statiche delle dipendenze
+non sostituiscono prove runtime di permessi e assenza di scritture.
+
+Fatturazione e Banca si aprono reciprocamente sul documento/movimento preciso,
+con mese e conto del movimento e dettaglio aperto. Il totale dei bonifici
+direttamente collegati non viene chiamato quota della fattura: un cumulativo
+può avere altre destinazioni. Una nota di debito integra, non storna. Le note
+sono risolte sull'archivio intero prima dei filtri di ricerca/stato, mantenendo
+anche gli arretrati. Valute diverse restano separate; importi mancanti o errori
+di lettura non sono convertiti in zero. Nessuna conferma o import attivato.
 
 ## Il mese letto dalla banca (§500, `lib/mese-banca.ts`)
 Contano i movimenti `banca`/`manuale`; un `derivato` nasce da una spunta e non

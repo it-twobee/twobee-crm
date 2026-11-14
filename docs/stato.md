@@ -1,5 +1,19 @@
 # Dove siamo
 
+## Progetto Economics approvato: Banca e Fatturazione nel Lab — 2026-11-14
+
+La home `/lab` segue il disegno a sei moduli. `/lab/banca` avvia la nuova
+lettura: movimenti banca per mese, saldi ricostruiti, confronto alla data
+dell'estratto, principali e sottoconti separati. `/lab/fatturazione` aggiunge
+emesse/ricevute, ricerca, rettifiche e legami bidirezionali con i movimenti;
+stato registro e prova bancaria distinti, residuo certificato n/d. Esperimento
+precedente conservato in `/lab/fatturazione/precedente`. Sola lettura, super admin,
+nessuna promozione di `/economics/*`. Il dossier iniziale nel progetto
+registra le letture effettive della produzione e i limiti ancora aperti;
+saldi completi ottobre/novembre, schema/grant/trigger e confronto formale
+non sono dichiarati certificati. Nessuna migration o scrittura sul DB.
+Dettaglio: `docs/progetto-moduli-economics.md`, `docs/lab.md`.
+
 ## Laboratorio: Mese dalla banca, Progetti, Fatturazione — §500, 2026-11-11
 
 `/lab/novembre` è solo banca (`lib/mese-banca.ts`): entrato e uscito dai
