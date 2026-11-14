@@ -33,6 +33,8 @@
 
 import type { RevenueLine, CostLine, PlKind } from './pl'
 import { coveredProjects, type Coverage, type RevenueStream } from './revenue'
+import type { MonthLine } from './revenue'
+import type { CostItem } from './costs'
 
 type Row = Record<string, unknown>
 
@@ -242,3 +244,18 @@ export const toRevenueLines = (rows: Row[] | null | undefined, ctx: RowCtx): Rev
   (rows ?? []).map(r => toRevenueLine(r, ctx))
 export const toCostLines = (rows: Row[] | null | undefined, ctx: RowCtx): CostRow[] =>
   (rows ?? []).map(c => toCostLine(c, ctx))
+
+/** Le proiezioni restano righe del mapper unico, senza materializzarle nel DB. */
+export function projectedMonthRows(month: string, revenue: MonthLine[], costs: CostItem[], ctx: RowCtx, streams: RevenueStream[], riskFund: boolean | ((streamId: string) => boolean) = false) {
+  return {
+    revenue: toRevenueLines(revenue.map(l => ({ ...l,
+      id: `projection:${month}:${l.stream_id}:${l.installment_id ?? 'recurring'}`, origin: 'contratto',
+      plan_amount: l.amount_net, invoices: 1, invoice_sent: false, paid: false,
+      sales_owner: streams.find(s => s.id === l.stream_id)?.sales_owner_name ?? null,
+      risk_fund: typeof riskFund === 'function' ? riskFund(l.stream_id) : riskFund,
+    })), ctx),
+    costs: toCostLines(costs.map(c => ({ ...c, id: `projection:${month}:${c.id}`, cost_item_id: c.id,
+      budget: c.amount, actual: c.amount, paid: false,
+    })), ctx),
+  }
+}

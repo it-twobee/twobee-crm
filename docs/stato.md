@@ -1,5 +1,12 @@
 # Dove siamo
 
+## Previsionale / Simulatore parziale nel Lab — 14 novembre 2026
+
+Nuovo ingresso /lab/previsionale: accordi attuali, scenari growth/digital su profili reali, tre condizioni d'incasso, delta su società/soci e date. Sei mesi dal prossimo mese intero, dodici su scelta. Quantità e assunzioni non scrivono dati. La base resta incompleta: saldo assoluto, riserva e numero di clienti necessario alla sicurezza sono n/d, anche se un delta è positivo. Nessuna promozione.
+
+TypeScript e 136 gate passati; nuovo gate anche UTC e America/Los_Angeles. Build finale e HTTP passati: sei chunk 200, base/scenario anonimi 307 verso login. Prova autenticata ancora aperta. Dossier e fonti nel [progetto Economics](progetto-moduli-economics.md), sezione «Previsionale / Simulatore parziale nel Lab». [Consegne Claude Code](passaggio-economics-claude.md) aggiornate; l'utente continua qui.
+
+
 ## Conto economico nel Laboratorio — 14 novembre 2026
 
 Nuovo ingresso /lab/conto-economico: Effettivo dai movimenti, Maturato dal registro con occorrenze mancanti, area dei tre soci e PDF binario della stessa fotografia. Sola lettura, super admin, nessuna promozione. I compensi completi di ottobre/novembre restano n/d: tre occorrenze ricavo e sei costo da raccordare, registri bancari concorrenti nello storico. Non sono somme pronte da bonificare.

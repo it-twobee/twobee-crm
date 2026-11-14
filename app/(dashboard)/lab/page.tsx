@@ -9,7 +9,7 @@ const SEZIONI: { nome: string; nota: string; href?: string }[] = [
   { nome: 'Fatturazione', nota: 'Emesse e ricevute: registro, rettifiche e riscontri bancari distinti. In verifica.', href: '/lab/fatturazione' },
   { nome: 'Risorse & tasse', nota: 'Dipendenti e freelance, documenti, F24 e IVA. In verifica.', href: '/lab/risorse' },
   { nome: 'Conto economico', nota: 'Effettivo e Maturato, compensi soci e PDF dalla stessa fotografia. In verifica.', href: '/lab/conto-economico' },
-  { nome: 'Previsionale', nota: 'Trend, criticità e scenari growth/digital con ipotesi esplicite.' },
+  { nome: 'Previsionale', nota: 'Accordi attuali, scenari growth/digital e criticità con ipotesi esplicite. In verifica.', href: '/lab/previsionale' },
 ]
 
 export default function LabPage() {

@@ -235,7 +235,7 @@ export function endOfMonth(month: string): string {
 
 // ── la regola ───────────────────────────────────────────────────────────────
 
-const isTerms = (v: unknown): v is Terms => TERMS.includes(v as Terms)
+export const isTerms = (v: unknown): v is Terms => TERMS.includes(v as Terms)
 
 /**
  * Che accordo di pagamento ha questa riga.
