@@ -12,6 +12,12 @@ vengono promosse, quelle in uso non cambiano.
   dell'IVA e i compensi dall'incassato.
 - **Progetti** (`/lab/progetti`): una riga per progetto da `projectDeal`. Un
   accordo che copre più progetti non si attribuisce a nessuno (§188): margine n/d.
+- **Accordi** (`/lab/accordi`): lettura di cliente/progetto, patto, calendario,
+  righe e riferimenti alle fatture. Conserva i conclusi e le loro rate; una
+  bozza resta distinta da un accordo attivo con avvio futuro. Gli accordi
+  condivisi compaiono una volta e non ricevono quote inventate per progetto.
+  Nessuna scrittura, editor o certificazione dalle spunte delle rate. Subappalti
+  anche non attivi, senza dedurne uno stato di vita non presente nella fonte.
 - **Fatturazione** (`/lab/fatturazione`): nuova lettura emesse/ricevute in verifica,
   con ricerca e filtri su registro, note e riscontri. Mantiene `isOpen`,
   `invoiceStatus`, `txCandidates` e il mapper `lib/invoices-load.ts` condivisi con
@@ -31,7 +37,7 @@ vengono promosse, quelle in uso non cambiano.
 ## Avvio del progetto Economics — 14 novembre 2026
 
 Il progetto `docs/progetto-moduli-economics.md` è approvato. La home `/lab`
-presenta i sei moduli concordati, con Banca e Fatturazione in verifica;
+presenta i sei moduli concordati, con Accordi, Banca e Fatturazione in verifica;
 gli esperimenti precedenti restano consultabili a parte. Gli altri moduli
 sono indicati come da costruire, senza link a schermate incomplete.
 
@@ -50,6 +56,9 @@ Gate: `TZ=Europe/Rome npx tsx lib/lab-bank.check.ts` e
 `TZ=Europe/Rome npx tsx lib/lab-invoices.check.ts`; casi di data anche con
 `TZ=UTC` e `TZ=America/Los_Angeles`. Le verifiche statiche delle dipendenze
 non sostituiscono prove runtime di permessi e assenza di scritture.
+Accordi: `TZ=Europe/Rome npx tsx lib/lab-deals.check.ts`. Il lettore comune
+gestisce anche la chiave composta stream/progetto, senza ordinare una tabella
+di relazioni su una colonna `id` inesistente.
 
 Fatturazione e Banca si aprono reciprocamente sul documento/movimento preciso,
 con mese e conto del movimento e dettaglio aperto. Il totale dei bonifici

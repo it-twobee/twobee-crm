@@ -4,7 +4,7 @@ import { FlaskConical, ChevronRight } from 'lucide-react'
 export const revalidate = 0
 
 const SEZIONI: { nome: string; nota: string; href?: string }[] = [
-  { nome: 'Accordi', nota: 'Dal cliente al progetto: accordo, rate, subappalto e riscontri.' },
+  { nome: 'Accordi', nota: 'Cliente, progetto, patto, rate e subappalto. Prima lettura in verifica.', href: '/lab/accordi' },
   { nome: 'Banca', nota: 'Movimenti, saldi e fonti di Banco BPM e Vivid. Prima lettura in verifica.', href: '/lab/banca' },
   { nome: 'Fatturazione', nota: 'Emesse e ricevute: registro, rettifiche e riscontri bancari distinti. In verifica.', href: '/lab/fatturazione' },
   { nome: 'Risorse & tasse', nota: 'Dipendenti e freelance, documenti mensili, versamenti e area IVA.' },

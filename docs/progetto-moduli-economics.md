@@ -1,6 +1,6 @@
 # Progetto dei moduli Economics
 
-Progetto avviato il 12 novembre 2026, approvato il 14 novembre 2026. **Step 1–9 confermati; avviata l'esecuzione autorizzata nel Laboratorio.** Il disegno corrente parte dal cliente e dalla catena accordo → fattura → banca. La precedente architettura a sette moduli è archiviata e non è il piano da implementare. Banca e Fatturazione in verifica, nessuna promozione, migration o scrittura sui dati di produzione. Pubblicazione del lavoro Lab su `main` autorizzata dall'utente dopo la verifica locale.
+Progetto avviato il 12 novembre 2026, approvato il 14 novembre 2026. **Step 1–9 confermati; avviata l'esecuzione autorizzata nel Laboratorio.** Il disegno corrente parte dal cliente e dalla catena accordo → fattura → banca. La precedente architettura a sette moduli è archiviata e non è il piano da implementare. Accordi, Banca e Fatturazione in verifica, nessuna promozione, migration o scrittura sui dati di produzione. Pubblicazione del lavoro Lab su `main` autorizzata dall'utente dopo la verifica locale.
 
 **Lettura rapida:** gli Step 1–5 descrivono l'esperienza richiesta; lo Step 6 definisce moduli e dati; gli Step 7–8 fissano promozione e controlli; lo Step 9 organizza l'esecuzione e raccoglie le decisioni residue. Il materiale dopo «Archivio non prescrittivo» conserva le evidenze iniziali e non sostituisce il piano corrente. L'approvazione del progetto non equivale all'autorizzazione a implementarlo.
 
@@ -54,6 +54,56 @@ Questa capacità è **in verifica**, non «promossa». Nessuna sezione Economics
 **Prove richieste per questa capacità:** gate `lib/lab-invoices.check.ts` su pagato senza banca, acconto, verso errato, derivato/manuale, valuta differente, candidato conteso/occupato e note di credito/debito; controllo statico delle dipendenze readonly e regressione Banca sul lettore condiviso. Il redirect anonimo locale è 307 verso `/login`. Esiti della raccolta completa e TypeScript riportati al checkpoint esecutivo sotto; prova visiva autenticata e promozione ancora aperte.
 
 **Esito verifiche della seconda capacità:** TypeScript senza errori; **130/130 gate passati con TZ Europe/Rome**. Entrambi i gate Banca/Fatturazione passano anche con TZ UTC e America/Los_Angeles. Controllati diff e token; manifest e lockfile invariati. Nessuna scrittura DB o modifica alle pagine Economics in uso. Il lettore condiviso è stato introdotto senza cambiare la regola `balance`; la prova visiva autenticata resta da svolgere.
+
+### Correzione caricamento e prosecuzione con Accordi
+
+L'utente segnala un chunk non caricato e chiede di correggere main, ripristinare
+l'accesso alle sezioni e proseguire. La lettura HTTP conferma la produzione su
+`813dd42` e il chunk segnalato con risposta 200: cambio versione/cache o errore
+transitorio restano ipotesi, non causa certificata. Corretto il recupero che
+usava solo `reset()`: una ricarica completa massima per build/scheda, nessuna
+automatica offline/storage negato, poi pulsante manuale. Errori economici e
+permessi non provocano reload automatici. Build di produzione, TypeScript e
+131 gate passati; otto chunk dei moduli Lab serviti con HTTP 200 dal build
+locale. Push `d759615`, versione verificata anche in produzione. La prova nel
+browser autenticato resta aperta e non viene sostituita dal controllo asset.
+
+**Terza capacità:** `/lab/accordi`, con gate esplicito nel server e nel loader,
+cliente/progetto e patto unici, rate e link alle fatture dalle righe collegate.
+Importi mancanti n/d, importi noti a zero conservati; nessuna somma arbitraria
+dei canoni con il venduto a corpo. Fonte della copertura `coveredProjects`,
+accordi condivisi esposti una volta; relazione singola incoerente segnalata
+senza aggirare il motore. Il margine del progetto condiviso resta n/d. I
+progetti privi di accordo attribuibile sono visibili, senza valore inventato.
+
+**Stati:** bozza = da avviare con patto ancora da confermare; attivo con avvio
+futuro = da avviare con fonte esplicita; attivo/sospeso/concluso conservati.
+Fine nel passato e stato attivo sono un'anomalia visibile, non una chiusura
+automatica. Le rate dei conclusi restano consultabili; le spunte
+fatturato/pagato sono dichiarazioni, non prova documentale/bancaria. I patti
+esterni sono mostrati anche se non attivi, senza tradurre automaticamente un
+booleano nei nuovi stati. I subappalti di un progetto non vengono duplicati
+come nuovi costi per ogni accordo che lo copre.
+
+**Dati reali letti per questa capacità:** 18 accordi (13 attivi, uno sospeso,
+quattro conclusi), 20 rate, 21 relazioni accordo/progetto, 62 righe ricavo e
+128 righe costo. Verificata la leggibilità delle colonne usate per i legami
+stream/rata/fattura e costo/patto/fattura. Nessuna scrittura. Le quantità non
+dimostrano completezza degli originali né riconciliazione dei saldi.
+
+**Riferimenti:** `lib/lab-deals.ts:3` per stati, `lib/lab-deals.ts:15` per copertura e
+`lib/lab-deals.ts:31` per selezione delle righe della singola rata;
+`lib/lab-deals-load.ts:17` per il gate; `lib/lab-read.ts:7` per paginazione anche
+su chiavi composte; `lib/lab-deals.check.ts:1` per stati,
+null/zero, copertura ambigua e divieto di assegnare la fattura di una rata alle
+altre. Nessuna sezione in uso sostituita. Esiti finali di questa capacità al
+checkpoint esecutivo.
+
+**Esito terza capacità:** TypeScript e 132 gate passati; build di produzione
+completato. Tutti i sei chunk di Accordi presenti e serviti con HTTP 200 nel
+server locale; richiesta anonima al modulo con redirect a login. Nessun
+permesso allargato, nessuna scrittura o migration. La verifica autenticata dei
+contenuti e il confronto formale restano necessari prima di promuovere.
 
 ## Proposta corrente — Step 1: cliente, progetto, accordi e riscontri
 
@@ -1135,19 +1185,19 @@ Il documento contiene inventario, confronto Lab con limiti delle evidenze, princ
 
 ## Lavoro successivo alla consegna concettuale
 
-Gli Step 1–9 sono approvati. L'utente ha autorizzato l'avvio esecutivo del Laboratorio e la sostituzione graduale quando i moduli saranno pronti. Le prime letture Banca e Fatturazione sono implementate nel checkout e in verifica; nessuna sezione in uso è già promossa. La roadmap mantiene i controlli, i checkpoint e i limiti del DB in sola lettura. Il materiale della vecchia architettura non è automaticamente riapprovato.
+Gli Step 1–9 sono approvati. L'utente ha autorizzato l'avvio esecutivo del Laboratorio e la sostituzione graduale quando i moduli saranno pronti. Le prime letture Accordi, Banca e Fatturazione sono implementate e in verifica; nessuna sezione in uso è già promossa. La roadmap mantiene i controlli, i checkpoint e i limiti del DB in sola lettura. Il materiale della vecchia architettura non è automaticamente riapprovato.
 
 ## Checkpoint corrente
 
 Cinque righe di sintesi:
 
 1. Progetto approvato; avvio esecutivo autorizzato nel Lab con produzione in sola lettura.
-2. Home a sei moduli, Banca e Fatturazione implementate; esperimenti precedenti conservati.
-3. Emesse/ricevute, rettifiche e collegamenti bidirezionali; registro e banca distinti, residuo certificato n/d.
-4. TypeScript senza errori, 130 gate passati; permessi autenticati, copertura e confronto formale ancora aperti.
+2. Home a sei moduli: Accordi, Banca e Fatturazione implementati; esperimenti precedenti conservati.
+3. Recupero degli errori chunk pubblicato e versione verificata; Accordi conserva rate dei conclusi e coperture condivise.
+4. TypeScript senza errori, 132 gate passati; permessi autenticati, copertura e confronto formale ancora aperti.
 5. Pubblicazione Lab su main autorizzata; nessuna migration, scrittura DB o sostituzione delle sezioni in uso.
 
-**Verifiche dell'avvio:** letture effettive del DB e campioni descritti in testa al documento; TypeScript senza errori e 130 gate passati, senza modificare manifest/lockfile. Nuovi gate Banca/Fatturazione passati anche in UTC e America/Los_Angeles. Richieste HTTP senza login a entrambe le nuove pagine reindirizzate a `/login`. Prova visiva autenticata, matrice completa dei permessi, grant/trigger effettivi e confronto transazionale restano aperti; i registri del repo non certificano lo stato corrente della produzione.
+**Verifiche dell'avvio:** letture effettive del DB e campioni descritti in testa al documento; TypeScript senza errori e 132 gate passati, senza modificare manifest/lockfile. Nuovi gate Banca/Fatturazione passati anche in UTC e America/Los_Angeles nelle rispettive consegne. Build e servizio HTTP verificati per la correzione dei chunk; versione corretta verificata in produzione. Richieste HTTP senza login alle pagine Banca/Fatturazione reindirizzate a `/login`. Prova visiva autenticata, matrice completa dei permessi, grant/trigger effettivi e confronto transazionale restano aperti; i registri del repo non certificano lo stato corrente della produzione.
 
 **Checkpoint esecutivo:** nessuna promozione proposta finché mancano copertura, confronto e prova d'uso autenticata. Proseguire dal primo modulo Banca e dai collegamenti con Fatturazione nel mandato ricevuto, senza riaprire il progetto approvato o alterare le sezioni in uso prima dei gate.
 

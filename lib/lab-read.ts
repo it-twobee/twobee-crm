@@ -3,6 +3,8 @@ import { requireLabAdmin } from '@/lib/lab-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 type LabTable = 'bank_accounts' | 'bank_transactions' | 'invoices' | 'payment_allocations'
+  | 'clients' | 'projects' | 'revenue_streams' | 'revenue_installments' | 'revenue_stream_projects'
+  | 'cost_items' | 'pl_revenue_lines' | 'pl_cost_lines' | 'pl_months'
 
 export async function readLabRows(table: LabTable, columns: string, today: string): Promise<Record<string, unknown>[]> {
   await requireLabAdmin()
@@ -10,7 +12,9 @@ export async function readLabRows(table: LabTable, columns: string, today: strin
   const rows: Record<string, unknown>[] = []
   let expected: number | null = null
   for (let offset = 0; ; offset += 500) {
-    let query = sb.from(table).select(columns, { count: 'exact' }).order('id')
+    let query = sb.from(table).select(columns, { count: 'exact' })
+    query = table === 'revenue_stream_projects'
+      ? query.order('stream_id').order('project_id') : query.order('id')
     if (table === 'bank_transactions') query = query.lte('booked_on', today)
     if (table === 'invoices') query = query.lte('issued_on', today)
     const { data, error, count } = await query.range(offset, offset + 499)
@@ -21,7 +25,8 @@ export async function readLabRows(table: LabTable, columns: string, today: strin
     if (rows.length >= count) break
     if (!data.length || offset >= 100000) throw new Error('Lettura incompleta')
   }
-  if (rows.length !== expected || new Set(rows.map(r => String(r.id))).size !== rows.length) {
+  const identities = rows.map(r => table === 'revenue_stream_projects' ? `${r.stream_id}:${r.project_id}` : String(r.id))
+  if (rows.length !== expected || new Set(identities).size !== rows.length) {
     throw new Error('Lettura incompleta')
   }
   return rows

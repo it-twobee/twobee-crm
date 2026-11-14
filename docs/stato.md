@@ -23,6 +23,28 @@ browser autenticato resta distinta dai test del recupero e dai controlli HTTP.
 Verifica locale: TypeScript e 131 gate passati; build di produzione isolato
 completato, tutte le dipendenze statiche dei tre percorsi Lab Banca/Fatturazione
 presenti nel manifest e su disco. Server di sviluppo fermato prima del build.
+Verificato anche il servizio HTTP locale: otto chunk unici rispondono 200,
+accessi anonimi a Banca/Fatturazione reindirizzati a login. Correzione pubblicata
+con `d759615`; `/api/version` in produzione ne conferma lo SHA. Una scheda che
+aveva già il vecchio codice deve acquisire questa versione con una ricarica.
+
+## Accordi nel Laboratorio — 2026-11-14
+
+`/lab/accordi` prosegue il progetto approvato: cliente/progetto, patto, rate,
+subappalti e link alle fatture attraverso le righe effettivamente collegate.
+Sola lettura, super admin, importi netti alla fonte; stato del lavoro separato
+da spunte del piano e riscontri. Nessuna attribuzione della stessa fattura a
+tutte le rate per il solo stream comune. Conclusi e voci esterne non attive
+restano consultabili. Copertura multi-progetto canonica, margine n/d; coperture
+singole incoerenti segnalate, non corrette di nascosto.
+
+Lettura reale: 18 accordi, 20 rate, 21 relazioni accordo/progetto; gli stati in
+fonte sono 13 attivi, uno sospeso, quattro conclusi, nessuna bozza. Il dato non
+certifica riconciliazioni o avvenuto pagamento. Gate `lib/lab-deals.check.ts`.
+Nessuna migration, scrittura DB o sostituzione delle sezioni Economics.
+Verifica: TypeScript e 132 gate passati, build di produzione completato.
+Tutti i sei chunk di Accordi serviti con HTTP 200 nel build locale;
+accesso anonimo al modulo reindirizzato a login. Prova autenticata ancora aperta.
 
 ## Progetto Economics approvato: Banca e Fatturazione nel Lab — 2026-11-14
 
