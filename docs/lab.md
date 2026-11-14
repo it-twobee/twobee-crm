@@ -1,5 +1,11 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## IVA nel Laboratorio — 14 novembre 2026
+
+Nuovo ingresso /lab/iva da Risorse & tasse: dovuto, riscontri del versamento, scadenza e giorni, IVA passata dai conti. Sola lettura, super admin; nessuna promozione o scrittura. Modello prima della stima esistente, fatture come confronto. Scaduti mantenuti; paid_on non certifica il versamento. F24 misti con compensazioni non sono ripartiti automaticamente.
+
+Riserva e leva n/d finché base iniziale, detraibilità e consolidato non sono documentati. Controlli: TypeScript e 134 gate; IVA anche UTC e America/Los_Angeles. Build isolata passata; sei chunk HTTP 200 e accesso anonimo 307 verso login. Dossier, dati reali e limiti in [progetto Economics](progetto-moduli-economics.md), sezione «IVA nel Laboratorio». La prova visiva e la matrice dei ruoli autenticati restano aperte.
+
 ## Risorse & tasse nel Laboratorio — 14 novembre 2026
 
 Quarta capacità in verifica: /lab/risorse, super admin, sola lettura. Mese iniziale precedente a quello corrente; competenza e data bancaria separate, pagamento risorse atteso entro il 20 del mese successivo. Netto concordato attuale distinto da netto del cedolino, costo e quota bancaria. Un F24 aggregato non certifica gli oneri della singola persona. Professionisti collegati alle fatture ricevute canoniche, senza creare un secondo costo. Documenti privati scaricabili solo dopo il gate Lab, anche sulle API; profili disattivati esclusi.

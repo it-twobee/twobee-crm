@@ -31,7 +31,7 @@ export default async function LabResourcesPage({ searchParams }: { searchParams:
     </nav>
     <nav aria-label="Area risorse e tasse" className="flex flex-wrap gap-2 text-sm">
       {(['risorse', 'versamenti'] as const).map(v => <Link key={v} href={href(month, group, v)} aria-current={view === v ? 'page' : undefined} className={`px-3 py-2 rounded-xl border ${view === v ? 'border-border-strong bg-surface-active text-text-primary' : 'border-border text-text-secondary'}`}>{v === 'risorse' ? 'Risorse' : 'F24 e versamenti'}</Link>)}
-      <span className="px-3 py-2 text-text-tertiary">IVA · prossimo modulo</span>
+      <Link href="/lab/iva" className="px-3 py-2 text-gold-text underline">IVA</Link>
     </nav>
     {!data.ok ? <p role="alert" className="rounded-xl bg-warning-dim p-4 text-sm text-warning">{data.message}</p> : (() => {
       const personRows = data.people.filter(p => (!group || resourceGroup(p.contract_kind) === group)
