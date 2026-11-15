@@ -1,10 +1,16 @@
 # Passaggio Economics a Claude Code
 
-Aggiornato il 14 novembre 2026. L'utente ha scelto di continuare qui con Codex;
+Aggiornato il 15 novembre 2026. L'utente ha scelto di continuare qui con Codex;
 questo file mantiene la continuità se occorre passare a un altro terminale.
 Non è disponibile una misura dei crediti residui: non dichiararli esauriti.
 
 ## Mandato corrente
+
+L’utente ha autorizzato esplicitamente il push su main al termine di tutto il lavoro. Ultimo completamento implementativo: filtro fatture per trimestre esplicito, percorsi IVA→fatture/competenze, accordi→righe/editor, originali fattura e accessi alle sezioni di gestione esistenti. Non rettificare dati storici o rimuovere n/d senza fonti. Verifiche finali passate: TypeScript e build isolato, 137/137 gate Europe/Rome; Banca/Collegamenti/Fatture anche UTC e America/Los_Angeles. HTTP: dieci ingressi 307 con parametri conservati e 17 chunk 200/MIME JS. Chiudere con fetch/divergenza, commit/push senza force e verifica /api/version; deploy distinto dalla promozione e dalla prova autenticata/visuale. Le note successive documentano i checkpoint precedenti dello stesso checkout.
+
+Secondo intervento nello stesso checkout: `lib/lab-connections*`, navigazione da movimenti a righe/risorse/F24/IVA/compensi, focus persona/F24/liquidazione, home con controlli per mese e selettore diretto. Mapper verificato sui riferimenti reali, senza mutazioni. Suite 137/137 passata, TypeScript e build finale passati; Banca/Collegamenti anche UTC e America/Los_Angeles. HTTP: nove ingressi 307 con parametri conservati e 17 chunk 200/MIME JS. Server di prova fermato. TypeScript va eseguito dopo il build: farli in parallelo ha prodotto errori sui tipi generati rimossi durante la rigenerazione, poi risolti dal controllo sequenziale. Conservare anche le modifiche del primo blocco, non pubblicate. Non dichiarare completa la riconciliazione dei dati o la prova visuale.
+
+Il 15 novembre l’utente ha richiesto integrazione effettiva dei dati di tutte le sezioni e forte miglioramento UI/UX responsive. Primo intervento locale, TypeScript/136 gate/build finale/HTTP passati, descritto nella sezione iniziale di docs/progetto-moduli-economics.md: navigazione comune, focus accordo corretto, profili prevalidati dallo stesso motore e confronto mobile. Non dichiarare terminata l’integrazione: fonti/registri/riserva e regolamenti restano da raccordare. Le prove via screenshot non certificano contrasto o mobile; nessun browser disponibile nella sessione CLI.
 
 Progetto approvato, esecuzione graduale nel Lab, commit e push su main dopo i
 gate autorizzati. Checkpoint attuale: prima capacità Previsionale / Simulatore.

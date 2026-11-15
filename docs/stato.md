@@ -1,5 +1,14 @@
 # Dove siamo
 
+## Integrazione e usabilità Economics — 15 novembre 2026
+
+Chiusura dei percorsi: IVA→fatture del trimestre/competenze, accordo→riga economica/editor, originale fattura e accessi alle sezioni di gestione esistenti. Storico fatture integrale salvo filtro esplicito; contesto mese conservato. L’utente ha autorizzato commit/push su main a verifiche concluse. Nessuna migration, scrittura DB o promozione; saldi/riserva/regolamenti non documentati restano n/d. Verifiche finali passate: TypeScript, 137/137 gate Europe/Rome e build; Banca/Collegamenti/Fatture anche UTC e America/Los_Angeles; dieci ingressi HTTP anonimi 307 con parametri conservati e 17 chunk 200/MIME JS. Rilascio su main autorizzato; prova autenticata/visuale e promozione restano aperte. Vedere il dossier iniziale nel progetto per perimetro e limiti. Le righe seguenti descrivono i checkpoint locali precedenti.
+
+Secondo intervento locale: percorsi Banca→competenza/risorsa/F24/compensi dai riferimenti reali, selezione diretta risorsa/modello/liquidazione, home con controlli per mese, ricerca movimenti e selettore mese. Nuovo gate `lib/lab-connections.check.ts`; TypeScript, 137/137 controlli e build finale passati. Nove ingressi anonimi 307 con parametri conservati, 17 chunk HTTP 200. Banca/Collegamenti anche UTC e America/Los_Angeles. Prova visuale e autenticata dei nuovi percorsi ancora aperta; due blocchi locali, non pubblicati. Letture produzione solo GET; nessun raccordo monetario scritto o promozione. Il dossier iniziale nel progetto contiene conteggi e limiti aggiornati.
+
+Nuovo mandato: collegare i dati dei moduli e rendere UI/UX responsive e più leggibile. Primo intervento locale: navigazione comune, mese mantenuto fra Banca/Risorse/Conto economico, link all’accordo realmente selezionato, profili di simulazione bloccati con motivazione e confronto mobile a schede. Nessun cambio di formule, scrittura DB o promozione. Raccordi economici e verifica browser restano aperti; dettaglio e perimetro nel [progetto Economics](progetto-moduli-economics.md), sezione iniziale del 15 novembre.
+
+
 ## Previsionale / Simulatore parziale nel Lab — 14 novembre 2026
 
 Nuovo ingresso /lab/previsionale: accordi attuali, scenari growth/digital su profili reali, tre condizioni d'incasso, delta su società/soci e date. Sei mesi dal prossimo mese intero, dodici su scelta. Quantità e assunzioni non scrivono dati. La base resta incompleta: saldo assoluto, riserva e numero di clienti necessario alla sicurezza sono n/d, anche se un delta è positivo. Nessuna promozione.

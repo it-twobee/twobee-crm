@@ -1,7 +1,36 @@
 import { invoiceStatus, isOpen, isVoided, partlyVoided, txCandidates, type Invoice, type TxRef } from '@/lib/invoices'
 import { toInvoices } from '@/lib/invoices-load'
+import { quarterMonths, quarterLabel, type Quarter } from '@/lib/vat'
 
 export type LabInvoice = Invoice & { currency: string; withholding: number; declaredPaidAmount: number | null }
+
+export function invoicePeriod(value: string | undefined) {
+  if (!value || !/^(19|20)\d{2}-T[1-4]$/.test(value)) return null
+  const quarter: Quarter = { year: Number(value.slice(0, 4)), q: Number(value.slice(-1)) as Quarter['q'] }
+  return { key: value, months: quarterMonths(quarter), label: quarterLabel(quarter) }
+}
+
+export function inInvoicePeriod(invoice: Pick<LabInvoice, 'issuedOn'>, period: ReturnType<typeof invoicePeriod>) {
+  return !period || period.months.includes(`${invoice.issuedOn.slice(0, 7)}-01`)
+}
+
+export type InvoiceEconomicLink = { id: string; side: 'ricavo' | 'costo'; label: string; month: string | null; streamId: string | null }
+
+export function invoiceEconomicLinks(revenue: Record<string, unknown>[], costs: Record<string, unknown>[], months: Record<string, unknown>[]) {
+  const dates = new Map(months.map(m => [m.id, String(m.month)]))
+  const links = new Map<string, InvoiceEconomicLink[]>()
+  for (const [side, rows] of [['ricavo', revenue], ['costo', costs]] as const) for (const row of rows) {
+    if (typeof row.invoice_id !== 'string' || !row.invoice_id || typeof row.id !== 'string') continue
+    const month = dates.get(row.month_id)
+    const list = links.get(row.invoice_id) ?? []
+    if (list.some(link => link.id === row.id && link.side === side)) continue
+    list.push({ id: row.id, side, label: String(row.label || (side === 'ricavo' ? 'Ricavo' : 'Costo')),
+      month: month && /^\d{4}-(0[1-9]|1[0-2])-01$/.test(month) ? month : null,
+      streamId: side === 'ricavo' && typeof row.stream_id === 'string' && row.stream_id ? row.stream_id : null })
+    links.set(row.invoice_id, list)
+  }
+  return links
+}
 
 export function toLabInvoices(rows: Record<string, unknown>[]): LabInvoice[] {
   const numeric = (v: unknown) => {

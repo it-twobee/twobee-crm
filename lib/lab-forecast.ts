@@ -188,9 +188,16 @@ export function labForecast(input: EconomicsInput, options: ForecastOptions) {
     : !neutral ? `Confronta il mix ${options.growth} growth e ${options.digital} digital come ipotesi; prima di acquisire verifica capacità, esterni e fabbisogno iniziale.`
     : 'Prima raccomandazione: riconciliare saldo, residui e IVA. Senza questa base non è determinabile quanti nuovi clienti rendano sostenibile la società.'
   const expiring = input.streams.filter(s => s.status === 'attivo' && s.end_date && s.end_date >= input.today && s.end_date <= end)
+  const sample = (kind: 'growth' | 'digital') => {
+    const candidates = templateSample(input.streams, kind)
+    return { ...candidates, profiles: candidates.eligible.map(stream => ({ ...stream, issues: hypothetical(input, {
+      ...options, growth: kind === 'growth' ? 1 : 0, digital: kind === 'digital' ? 1 : 0,
+      growthProfile: kind === 'growth' ? stream.id : '', digitalProfile: kind === 'digital' ? stream.id : '',
+    }, from).issues })) }
+  }
   return { from, end, options, base, scenario, delta, curve, extraEvents, quality, first, neutral, history, expiring,
     // Nessuna ricerca sul reale finché saldo e riserva non sono certificati.
     proposal: { status: 'incompleta' as const, growth: null, digital: null },
-    growthSample: templateSample(input.streams, 'growth'), digitalSample: templateSample(input.streams, 'digital'),
+    growthSample: sample('growth'), digitalSample: sample('digital'),
     cashDelta: !extra.issues.length && (neutral || options.externalComplete) ? curve.final : null }
 }

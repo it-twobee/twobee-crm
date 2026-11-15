@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabInvoices } from '@/lib/lab-invoices-load'
-import { invoiceEvidence, invoiceProposals } from '@/lib/lab-invoices'
+import { invoiceEvidence, invoiceProposals, invoicePeriod, inInvoicePeriod } from '@/lib/lab-invoices'
 import { romeToday } from '@/lib/lab-bank'
 import { isCreditNote, isDebitNote, signedTotal, partlyVoided } from '@/lib/invoices'
 import { eur2 } from '@/lib/money'
+import { quarterOf } from '@/lib/vat'
+import { labContextMonth } from '@/lib/lab-context'
+import LabSourceActions from '@/components/lab/LabSourceActions'
+import LabConnectionList from '@/components/lab/LabConnectionList'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +18,7 @@ const money = (value: number | null, currency: string) => value == null ? 'n/d'
   : currency === 'EUR' ? eur2(value) : `${value.toFixed(2)} ${currency}`
 
 export default async function LabInvoicesPage({ searchParams }: {
-  searchParams: { tipo?: string; stato?: string; documento?: string; q?: string }
+  searchParams: { tipo?: string; stato?: string; documento?: string; q?: string; periodo?: string; m?: string }
 }) {
   await requireLabAdmin()
   const today = romeToday()
@@ -23,14 +27,20 @@ export default async function LabInvoicesPage({ searchParams }: {
   const direction = focused?.direction ?? (searchParams.tipo === 'ricevuta' ? 'ricevuta' : 'emessa')
   const state: State = searchParams.stato && Object.hasOwn(STATES, searchParams.stato) ? searchParams.stato as State : 'verifica'
   const query = (searchParams.q ?? '').trim().slice(0, 200)
+  const contextMonth = labContextMonth(searchParams.m)
+  const period = invoicePeriod(searchParams.periodo)
+  const periods = data.ok ? Array.from(new Set(data.invoices.map(i => { const q = quarterOf(i.issuedOn); return `${q.year}-T${q.q}` }))).sort().reverse() : []
+  if (period && !periods.includes(period.key)) periods.unshift(period.key)
   const href = (tipo: string, stato: string, documento?: string) => {
     const params = new URLSearchParams({ tipo, stato })
     if (documento) params.set('documento', documento)
+    if (contextMonth) params.set('m', contextMonth)
+    if (period) params.set('periodo', period.key)
     if (query) params.set('q', query)
     return `/lab/fatturazione?${params}`
   }
-  const rows = data.ok ? data.invoices.filter(i => i.direction === direction).map(i => ({ i, evidence: invoiceEvidence(i, data.txs, today) })) : []
-  const visible = rows.filter(({ i, evidence }) => focused ? i.id === focused.id
+  const rows = data.ok ? data.invoices.filter(i => i.direction === direction && (focused ? i.id === focused.id : inInvoicePeriod(i, period))).map(i => ({ i, evidence: invoiceEvidence(i, data.txs, today) })) : []
+  const visible = rows.filter(({ i, evidence }) => searchParams.documento ? i.id === searchParams.documento
     : (state === 'tutte' || (state === 'verifica' && evidence.needsReview) || (state === 'aperte' && evidence.open)
       || (state === 'note' && (!!i.rectifiesId || !!i.rectifiedBy?.length || isCreditNote(i.docType) || isDebitNote(i.docType))))
       && (!query || `${i.number} ${i.counterpartyName}`.toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it'))))
@@ -38,8 +48,7 @@ export default async function LabInvoicesPage({ searchParams }: {
       || (a.i.dueDate ?? '9999').localeCompare(b.i.dueDate ?? '9999') || a.i.id.localeCompare(b.i.id))
   const suggestions = data.ok ? invoiceProposals(data.invoices, data.txs, today) : null
 
-  return <div className="min-h-full max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <div className="flex gap-4 text-sm text-gold-text"><Link href="/lab" className="underline">Laboratorio</Link><Link href="/lab/banca" className="underline">Banca</Link></div>
+  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
     <header>
       <h1 className="text-xl text-text-primary font-semibold">Fatturazione</h1>
       <p className="text-sm text-text-secondary">Che cosa è documentato e quale pagamento lo spiega?</p>
@@ -51,7 +60,7 @@ export default async function LabInvoicesPage({ searchParams }: {
           className={`px-4 py-2 rounded-xl border text-sm ${tipo === direction ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{tipo === 'emessa' ? 'Emesse' : 'Ricevute'}</Link>)}
       </nav>
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[['Documenti in archivio', String(rows.length)], ['Aperti secondo il registro', String(rows.filter(r => r.evidence.open).length)], [direction === 'emessa' ? 'Residuo da incassare certificato' : 'Residuo da pagare certificato', 'n/d']].map(([label, value]) => <div key={label} className="p-4 bg-surface rounded-xl border border-border"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl text-text-primary font-semibold tabular-nums">{value}</dd></div>)}
+        {[[period && !focused ? 'Documenti del trimestre' : focused ? 'Documento selezionato' : 'Documenti in archivio', String(rows.length)], ['Aperti secondo il registro', String(rows.filter(r => r.evidence.open).length)], [direction === 'emessa' ? 'Residuo da incassare certificato' : 'Residuo da pagare certificato', 'n/d']].map(([label, value]) => <div key={label} className="p-4 bg-surface rounded-xl border border-border"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl text-text-primary font-semibold tabular-nums">{value}</dd></div>)}
       </dl>
       <aside className="bg-surface border border-border rounded-xl p-4 text-sm text-text-secondary space-y-2">
         <p>Lo stato del registro e i movimenti bancari sono due riscontri distinti. Una data «pagata» non certifica l’incasso; un bonifico collegato non dimostra che copra tutta la fattura.</p>
@@ -61,11 +70,16 @@ export default async function LabInvoicesPage({ searchParams }: {
         {Object.entries(STATES).map(([key, label]) => <Link key={key} href={href(direction, key)} aria-current={!focused && state === key ? 'page' : undefined}
           className={`px-3 py-2 rounded-xl border text-sm ${!focused && state === key ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{label}</Link>)}
       </nav>
-      <form className="flex flex-wrap gap-2" method="get">
+      <form className="grid gap-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end" method="get">
         <input type="hidden" name="tipo" value={direction} /><input type="hidden" name="stato" value={state} />
-        <label className="flex-1 min-w-0"><span className="sr-only">Cerca numero o controparte</span><input name="q" defaultValue={query} maxLength={200} placeholder="Cerca numero o controparte" className="w-full bg-surface border border-border-interactive text-text-primary rounded-xl px-3 py-2 text-sm" /></label>
-        <button type="submit" className="px-4 py-2 bg-gold text-on-gold rounded-xl text-sm font-medium">Cerca</button>
+        {contextMonth && <input type="hidden" name="m" value={contextMonth} />}
+        <label className="min-w-0 text-2xs text-text-secondary">Cerca numero o controparte<input name="q" defaultValue={query} maxLength={200} placeholder="Cerca numero o controparte" className="mt-1 min-h-11 w-full bg-surface border border-border-interactive text-text-primary rounded-xl px-3 py-2 text-sm" /></label>
+        <label className="text-2xs text-text-secondary">Periodo di emissione<select name="periodo" defaultValue={period?.key ?? ''} className="mt-1 min-h-11 w-full min-w-0 max-w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary"><option value="">Tutto lo storico · inclusi arretrati</option>{periods.map(key => <option key={key} value={key}>{invoicePeriod(key)?.label ?? key}</option>)}</select></label>
+        <button type="submit" className="min-h-11 px-4 py-2 bg-gold text-on-gold rounded-xl text-sm font-medium">Filtra</button>
       </form>
+      {searchParams.periodo && !period && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Periodo non valido: è mostrato lo storico, senza un filtro trimestrale.</p>}
+      {period && !focused && <p className="rounded-xl bg-info-dim p-3 text-sm text-info">Emissione: {period.label}. Le note sono nel proprio trimestre; il filtro non sposta la competenza o la data bancaria. <Link className="underline" href={`/lab/iva?periodo=${period.key}`}>Apri il confronto IVA</Link> · <Link className="underline" href={`/lab/fatturazione?${new URLSearchParams({ tipo: direction, stato: state, ...(contextMonth ? { m: contextMonth } : {}) })}`}>Mostra tutto lo storico</Link></p>}
+      <p role="status" className="text-2xs text-text-secondary">{visible.length} documenti per questa selezione.</p>
       {searchParams.documento && !focused && <p className="text-sm text-warning">Documento non presente nell’archivio letto. Nessun collegamento viene dedotto.</p>}
       {focused && <p className="text-sm text-text-secondary">Documento selezionato · <Link className="text-gold-text underline" href={href(direction, 'tutte')}>Torna all’elenco</Link></p>}
       {!visible.length && <p className="text-sm text-text-secondary">Nessun documento per questa selezione. La completezza delle fonti resta da verificare.</p>}
@@ -76,10 +90,11 @@ export default async function LabInvoicesPage({ searchParams }: {
           const candidates = suggestions?.proposals.get(i.id) ?? []
           const kind = isCreditNote(i.docType) ? 'Nota di credito' : isDebitNote(i.docType) ? 'Nota di debito' : 'Fattura'
           return <li key={i.id} className="bg-surface border border-border rounded-2xl p-4 space-y-3">
-            <div className="flex justify-between gap-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:gap-3">
               <div className="min-w-0"><h2 className="text-sm font-semibold text-text-primary break-words">{i.counterpartyName}</h2><p className="text-2xs text-text-secondary">{kind} {i.number} · {i.issuedOn}</p></div>
               <span className="text-sm text-text-primary font-semibold tabular-nums whitespace-nowrap">{money(signedTotal(i), i.currency)}</span>
             </div>
+            {i.pdfPath && <a href={`/api/invoices/${encodeURIComponent(i.id)}/download`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text hover:bg-surface-hover">Apri documento originale</a>}
             <p className="text-2xs text-text-secondary">Registro: <strong className="text-text-primary">{evidence.status.label}</strong> · {evidence.status.why}</p>
             <p className="text-2xs text-text-secondary">Banca: {evidence.real.length ? `${evidence.real.length} movimenti collegati` : 'nessun movimento banca direttamente collegato'} · residuo certificato n/d.</p>
             {i.paidOn && !evidence.real.length && <p className="text-2xs text-warning">La data di pagamento è presente nel registro; manca il riscontro bancario diretto in questa lettura.</p>}
@@ -87,6 +102,17 @@ export default async function LabInvoicesPage({ searchParams }: {
             {evidence.currencyMismatch && <p className="text-2xs text-warning">Valute diverse: nessuna somma o conversione implicita.</p>}
             {evidence.declared.length > 0 && <p className="text-2xs text-warning">{evidence.declared.length} riferimenti manuali/derivati separati dalla prova bancaria.</p>}
             {partlyVoided(i) && <p className="text-2xs text-warning">Storno parziale: l’importo in testata è il lordo originario, non il residuo da incassare/pagare.</p>}
+            <section className="rounded-xl bg-surface-hover p-3 space-y-2">
+              <h3 className="text-sm font-semibold text-text-primary">Nel conto economico e negli accordi</h3>
+              {data.economicLinks == null ? <p className="text-2xs text-warning">Collegamenti economici non disponibili in questa lettura. Non significa che siano assenti.</p>
+                : !(data.economicLinks.get(i.id)?.length) ? <p className="text-2xs text-text-secondary">Nessuna riga economica riferisce direttamente questa fattura. Competenza e accordo da collegare.</p>
+                : <ul className="space-y-2 text-2xs text-text-secondary">{data.economicLinks.get(i.id)!.map(ref => <li key={`${ref.side}:${ref.id}`} className="space-y-1">
+                  <p>{ref.label} · {ref.side} · competenza {ref.month?.slice(0, 7) ?? 'n/d'}</p>
+                  <div className="flex flex-wrap gap-3">{ref.month && <Link className="text-gold-text underline" href={`/lab/conto-economico?m=${ref.month}&vista=maturato&riga=${encodeURIComponent(ref.id)}&tipoRiga=${ref.side}#righe-economiche`}>Apri la riga nel conto economico</Link>}{ref.streamId && <Link className="text-gold-text underline" href={`/lab/accordi?accordo=${encodeURIComponent(ref.streamId)}`}>Apri l’accordo</Link>}</div>
+                </li>)}</ul>}
+              <p className="text-2xs text-text-secondary">Riferimenti presenti nel registro: non certificano una quota di pagamento.</p>
+            </section>
+            {(data.resourceLinks == null || data.resourceLinks.get(i.id)?.links.length || data.resourceLinks.get(i.id)?.issues.length) ? <section className="rounded-xl bg-surface-hover p-3 space-y-2"><h3 className="text-sm font-semibold text-text-primary">Risorsa collegata</h3><LabConnectionList connections={data.resourceLinks?.get(i.id) ?? null} /></section> : null}
             <details open={!!focused}>
               <summary className="cursor-pointer text-sm text-gold-text py-1">Fonti, rettifiche e movimenti</summary>
               <div className="mt-2 space-y-2 text-2xs text-text-secondary">
@@ -111,6 +137,7 @@ export default async function LabInvoicesPage({ searchParams }: {
           </li>
         })}
       </ul>
+      <LabSourceActions actions={[{ label: 'Carica fatture e documenti', href: '/economics/carica' }, { label: 'Gestisci le fatture', href: `/economics/fatturazione${contextMonth ? `?m=${contextMonth}` : ''}` }]} />
       <p className="text-2xs text-text-tertiary">Lettura avviata {data.observedAt}. I dati possono aggiornarsi durante la lettura. Completezza delle fonti e confronto con la sezione in uso ancora da verificare.</p>
     </>}
   </div>

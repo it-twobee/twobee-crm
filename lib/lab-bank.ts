@@ -1,4 +1,5 @@
 import { balance, type BankAccount, type BankTx } from '@/lib/bank'
+import { labContextMonth } from '@/lib/lab-context'
 
 export type LabBankAccount = BankAccount & { is_active: boolean }
 export type LabBankTx = BankTx & { invoice_id: string | null }
@@ -10,8 +11,7 @@ export function romeToday(now = new Date()): string {
 }
 
 export function labMonth(value: string | undefined, today: string): string {
-  return value && /^(19|20)\d{2}-(0[1-9]|1[0-2])-01$/.test(value)
-    ? value : `${today.slice(0, 7)}-01`
+  return labContextMonth(value) ?? `${today.slice(0, 7)}-01`
 }
 
 export function monthEnd(month: string): string {

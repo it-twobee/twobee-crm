@@ -2,7 +2,9 @@ import 'server-only'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { readLabRows } from '@/lib/lab-read'
 import { INVOICE_COLUMNS } from '@/lib/invoices-load'
-import { toLabInvoices, type LabInvoice, type LabInvoiceTx } from '@/lib/lab-invoices'
+import { toLabInvoices, type InvoiceEconomicLink, type LabInvoice, type LabInvoiceTx } from '@/lib/lab-invoices'
+import { loadLabConnections } from '@/lib/lab-connections-load'
+import { connectionEconomics, invoiceResourceConnections, type LabConnections } from '@/lib/lab-connections'
 
 const numeric = (v: unknown): number => {
   if (v == null || v === '' || !Number.isFinite(Number(v))) throw new Error('Valore mancante')
@@ -10,17 +12,18 @@ const numeric = (v: unknown): number => {
 }
 
 export async function loadLabInvoices(today: string): Promise<
-  | { ok: true; invoices: LabInvoice[]; txs: LabInvoiceTx[]; accountNames: Map<string, string>; observedAt: string }
+  | { ok: true; invoices: LabInvoice[]; txs: LabInvoiceTx[]; accountNames: Map<string, string>; observedAt: string; economicLinks: Map<string, InvoiceEconomicLink[]> | null; resourceLinks: Map<string, LabConnections> | null }
   | { ok: false; message: string }
 > {
   await requireLabAdmin()
   const observedAt = new Date().toISOString()
   try {
-    const [rows, bank, allocations, accounts] = await Promise.all([
+    const [rows, bank, allocations, accounts, references] = await Promise.all([
       readLabRows('invoices', `${INVOICE_COLUMNS}, currency, withholding, paid_amount`, today),
       readLabRows('bank_transactions', 'id,account_id,booked_on,amount,source,kind,description,counterparty,invoice_id,revenue_line_id,cost_line_id,payslip_id,hr_invoice_id,no_match_needed,hidden_reason', today),
       readLabRows('payment_allocations', 'id,tx_id', today),
       readLabRows('bank_accounts', 'id,label,currency', today),
+      loadLabConnections(today),
     ])
     const invoices = toLabInvoices(rows)
     const allocated = new Set(allocations.map(a => String(a.tx_id)))
@@ -37,7 +40,9 @@ export async function loadLabInvoices(today: string): Promise<
           || account.currency !== 'EUR',
       }
     })
-    return { ok: true, invoices, txs, accountNames: new Map(accounts.map(a => [String(a.id), String(a.label)])), observedAt }
+    return { ok: true, invoices, txs, accountNames: new Map(accounts.map(a => [String(a.id), String(a.label)])), observedAt,
+      economicLinks: references ? connectionEconomics(references) : null,
+      resourceLinks: references ? new Map(invoices.map(i => [i.id, invoiceResourceConnections(i.id, references)])) : null }
   } catch {
     return { ok: false, message: 'Archivio non disponibile, incompleto o con valori mancanti. Totali e residui n/d; ricarica per riprovare.' }
   }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { labContextMonth } from '@/lib/lab-context'
 import { readFileSync } from 'node:fs'
 import { bankReadout, bankReference, labMonth, monthEnd, romeToday, type LabBankAccount, type LabBankTx } from '@/lib/lab-bank'
 
@@ -38,8 +39,16 @@ assert.equal(bankReadout(account, rows, '2026-12-01', '2026-11-14').inflow, 0)
 assert.equal(bankReadout({ ...account, opening_date: '2027-01-01' }, [], '2026-10-01', '2026-11-14').reconstructed, null)
 assert.equal(bankReference(tx('x', '2026-10-01', 10)), 'Nessun riferimento diretto')
 assert.equal(bankReference(tx('x', '2026-10-01', 10, { invoice_id: 'i' })), 'Fattura')
+assert.equal(labContextMonth(null), undefined)
+assert.equal(labContextMonth('2026-10'), '2026-10-01')
+assert.equal(labContextMonth('2026-10-01'), '2026-10-01')
+assert.equal(labContextMonth('2026-13-01'), undefined)
+assert.equal(labContextMonth('2026-10-20'), undefined)
 assert.equal(labMonth('2026-13-01', '2026-11-14'), '2026-11-01')
 assert.equal(labMonth('2026-10-01', '2026-11-14'), '2026-10-01')
+assert.equal(labMonth('2026-10', '2026-11-14'), '2026-10-01', 'Selettore mese HTML normalizzato prima delle letture')
+assert.equal(labMonth('2026-13', '2026-11-14'), '2026-11-01')
+assert.equal(labMonth('2026-10-20', '2026-11-14'), '2026-11-01', 'Non converte date arbitrarie in una competenza')
 assert.equal(monthEnd('2028-02-01'), '2028-02-29')
 assert.equal(monthEnd('2026-02-01'), '2026-02-28')
 assert.equal(romeToday(new Date('2026-10-31T23:30:00Z')), '2026-11-01')

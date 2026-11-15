@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { invoiceEvidence, invoiceProposals, type LabInvoice, type LabInvoiceTx } from '@/lib/lab-invoices'
+import { invoiceEvidence, invoiceProposals, invoiceEconomicLinks, invoicePeriod, inInvoicePeriod, type LabInvoice, type LabInvoiceTx } from '@/lib/lab-invoices'
 import { withRectifications } from '@/lib/invoices'
 
+const secondQuarter = invoicePeriod('2026-T2')!
+assert.deepEqual(secondQuarter.months, ['2026-04-01', '2026-05-01', '2026-06-01'])
+assert.equal(inInvoicePeriod({ issuedOn: '2026-06-30' }, secondQuarter), true)
+assert.equal(inInvoicePeriod({ issuedOn: '2026-07-01' }, secondQuarter), false, 'Nota emessa nel trimestre successivo non trascinata dal documento originario')
+assert.equal(inInvoicePeriod({ issuedOn: '2025-12-01' }, null), true, 'Senza filtro esplicito gli arretrati restano nello storico')
+assert.equal(inInvoicePeriod({ issuedOn: '2027-01-01' }, invoicePeriod('2026-T4')), false)
+assert.equal(invoicePeriod('2026-T0'), null)
+assert.equal(invoicePeriod('2026-T5'), null)
+assert.equal(invoicePeriod('2026-10'), null, 'Il mese di navigazione non è un filtro trimestrale implicito')
 const today = '2026-11-14'
 const invoice = (extra: Partial<LabInvoice> = {}): LabInvoice => ({
   id: 'i', direction: 'emessa', docType: 'TD01', number: '10/26', issuedOn: '2026-10-01',
@@ -52,6 +61,21 @@ assert.equal(invoiceEvidence(voided[0], [], today).open, false)
 const debit = withRectifications([invoice(), invoice({ id: 'debit', docType: 'TD05', rectifiesId: 'i' })]) as LabInvoice[]
 assert.equal(invoiceEvidence(debit[0], [], today).open, true, 'Nota di debito non storna')
 assert.equal(invoiceEvidence(debit[1], [], today).open, true)
+
+const references = invoiceEconomicLinks([
+  { id: 'r1', invoice_id: 'i', month_id: 'm1', stream_id: 's', label: 'Prima competenza' },
+  { id: 'r2', invoice_id: 'i', month_id: 'm2', stream_id: 's' },
+  { id: 'r1', invoice_id: 'i', month_id: 'm1', stream_id: 's' },
+  { id: 'unlinked', invoice_id: null, month_id: 'm1' },
+], [{ id: 'r1', invoice_id: 'i', month_id: 'missing', stream_id: 'not-a-cost-contract' }], [
+  { id: 'm1', month: '2026-10-01' }, { id: 'm2', month: '2026-11-01' },
+])
+assert.equal(references.get('i')?.length, 3, 'Fattura su più competenze: riferimenti distinti, replay deduplicato')
+assert.equal(references.get('i')?.[0].streamId, 's')
+assert.equal(references.get('i')?.[1].month, '2026-11-01')
+assert.equal(references.get('i')?.[2].month, null, 'Mese assente non dedotto dalla data fattura')
+assert.equal(references.get('i')?.[2].streamId, null, 'Un costo non riceve un accordo cliente implicito')
+assert.equal(references.size, 1, 'Nessun collegamento da un invoice_id mancante')
 
 for (const path of ['lib/lab-read.ts', 'lib/lab-invoices-load.ts', 'app/(dashboard)/lab/fatturazione/page.tsx']) {
   const source = readFileSync(path, 'utf8')
