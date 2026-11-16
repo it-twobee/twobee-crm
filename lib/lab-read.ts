@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 type LabTable = 'bank_accounts' | 'bank_transactions' | 'invoices' | 'payment_allocations'
   | 'clients' | 'projects' | 'revenue_streams' | 'revenue_installments' | 'revenue_stream_projects'
-  | 'cost_items' | 'pl_revenue_lines' | 'pl_cost_lines' | 'pl_months'
+  | 'cost_items' | 'cost_centers' | 'pl_revenue_lines' | 'pl_cost_lines' | 'pl_months'
   | 'hr_people' | 'hr_payslips' | 'hr_invoices' | 'hr_payroll_params' | 'hr_f24'
   | 'payslips' | 'bank_tx_payslips' | 'personal_documents' | 'economics_documents'
   | 'f24_documents' | 'f24_lines' | 'vat_settlements'

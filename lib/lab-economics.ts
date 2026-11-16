@@ -8,6 +8,7 @@ import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 import { buildWindow, placeLine, marginCostsFor } from '@/lib/payout-window'
 import { payoutPeople } from '@/lib/payout-report'
 import { isVoided, partlyVoided } from '@/lib/invoices'
+import { isPayrollCenter } from '@/lib/costs'
 import type { LabInvoice } from '@/lib/lab-invoices'
 import type { ResourceRow as Row } from '@/lib/lab-resources'
 
@@ -37,10 +38,11 @@ export function economicCash(accounts: LabBankAccount[], txs: LabBankTx[], month
     consolidated: null, mainCount: main.length }
 }
 
-export type LineProof = { id: string; covered: number | null; completedOn: string | null; documentOk: boolean; issues: string[]; hits: { txId: string; accountId: string; date: string; amount: number }[] }
+export type LineProof = { id: string; covered: number | null; completedOn: string | null; documentOk: boolean; issues: string[];
+  referenceIssues: { txId: string; code: string; label: string }[]; hits: { txId: string; accountId: string; date: string; amount: number }[] }
 
 export function economicProof(rows: Row[], txs: LabBankTx[], accounts: LabBankAccount[], invoices: LabInvoice[], allocations: Row[], legacy: Row[], today: string): Map<string, LineProof> {
-  const proofs = new Map(rows.map(r => [String(r.id), { id: String(r.id), covered: null, completedOn: null, documentOk: false, issues: [] as string[], hits: [] as LineProof['hits'] } as LineProof]))
+  const proofs = new Map(rows.map(r => [String(r.id), { id: String(r.id), covered: null, completedOn: null, documentOk: false, issues: [] as string[], referenceIssues: [], hits: [] as LineProof['hits'] } as LineProof]))
   const target = (a: Row) => a.revenue_line_id ? `r:${a.revenue_line_id}` : a.cost_line_id ? `c:${a.cost_line_id}` : a.payout_id ? `p:${a.payout_id}` : a.f24_id ? `f:${a.f24_id}` : '?'
   const signature = (xs: Row[]) => xs.map(a => `${target(a)}:${cents(Number(a.amount))}`).sort().join('|')
   const active = allocations.filter(a => !a.superseded)
@@ -51,18 +53,28 @@ export function economicProof(rows: Row[], txs: LabBankTx[], accounts: LabBankAc
     const direct = [tx.revenue_line_id, tx.cost_line_id].filter(Boolean)
     const parts = modern.length ? modern : old.length ? old : direct.length === 1
       ? [{ revenue_line_id: tx.revenue_line_id, cost_line_id: tx.cost_line_id, amount: Math.abs(tx.amount) }] : []
-    const conflicted = (modern.length > 0 && old.length > 0 && signature(modern) !== signature(old))
-      || modern.some(a => a.evidence !== 'certificata')
-      || parts.some(a => knownAmount(a.amount) == null || Number(a.amount) <= 0)
-      || new Set(parts.map(target)).size !== parts.length
-      || cents(sum(parts.map(a => Number(a.amount)))) > cents(Math.abs(tx.amount))
-      || direct.some(id => !parts.some(a => a.revenue_line_id === id || a.cost_line_id === id))
-      || !!tx.payslip_id || !!tx.hr_invoice_id
+    const reasons: { txId: string; code: string; label: string }[] = []
+    const reason = (condition: boolean, code: string, label: string) => { if (condition) reasons.push({ txId: tx.id, code, label }) }
+    reason(modern.length > 0 && old.length > 0 && signature(modern) !== signature(old), 'registri_divergenti', 'Quote correnti e collegamenti storici non coincidono')
+    reason(modern.some(a => a.evidence !== 'certificata'), 'quote_non_certificate', 'Quote correnti prive di prova certificata')
+    reason(parts.some(a => knownAmount(a.amount) == null || Number(a.amount) <= 0), 'importi_non_validi', 'Importi delle quote mancanti o non validi')
+    reason(new Set(parts.map(target)).size !== parts.length, 'destinatario_duplicato', 'Lo stesso destinatario compare più volte sul movimento')
+    reason(cents(sum(parts.map(a => Number(a.amount)))) > cents(Math.abs(tx.amount)), 'capienza_superata', 'Le quote superano il valore del movimento')
+    reason(direct.some(id => !parts.some(a => a.revenue_line_id === id || a.cost_line_id === id)), 'riferimento_diretto_diverso', 'Il riferimento diretto del movimento non coincide con i destinatari delle quote')
+    reason(!!tx.payslip_id || !!tx.hr_invoice_id, 'riferimento_hr', 'Movimento riferito anche a un documento HR: attribuzione da verificare')
     for (const row of rows) {
       const own = parts.filter(a => (tx.amount > 0 ? a.revenue_line_id : a.cost_line_id) === row.id)
       if (!own.length) continue
       const proof = proofs.get(String(row.id))!
-      if (conflicted || (tx.invoice_id && row.invoice_id !== tx.invoice_id)) { proof.issues.push('Registri o riferimenti concorrenti da raccordare'); continue }
+      const rowReasons = [...reasons]
+      if (tx.invoice_id && row.invoice_id !== tx.invoice_id) rowReasons.push({ txId: tx.id,
+        code: row.invoice_id ? 'fatture_divergenti' : 'fattura_riga_assente',
+        label: row.invoice_id ? 'Fattura della riga diversa da quella del movimento' : 'Fattura presente sul movimento, non collegata alla riga' })
+      if (rowReasons.length) {
+        proof.referenceIssues.push(...rowReasons)
+        proof.issues.push('Registri o riferimenti concorrenti da raccordare', ...rowReasons.map(r => r.label))
+        continue
+      }
       proof.hits.push(...own.map(a => ({ txId: tx.id, accountId: tx.account_id, date: tx.booked_on, amount: Number(a.amount) })))
     }
   }
@@ -95,14 +107,20 @@ export function economicProof(rows: Row[], txs: LabBankTx[], accounts: LabBankAc
 export type EconomicsInput = {
   month: string; today: string; observedAt: string; months: Row[]; revenue: Row[]; costs: Row[]; clients: Row[];
   streams: RevenueStream[]; installments: Installment[]; links: { stream_id: string; project_id: string }[];
-  items: SubItem[]; config: Row[]; partners: Row[]; invoices: LabInvoice[]; accounts: LabBankAccount[];
+  items: (SubItem & { center_id?: string | null })[]; costCenters?: Row[]; config: Row[]; partners: Row[]; invoices: LabInvoice[]; accounts: LabBankAccount[];
   txs: LabBankTx[]; allocations: Row[]; legacy: Row[];
+}
+
+export function economicPlanItems(input: Pick<EconomicsInput, 'items' | 'costCenters'>) {
+  const payroll = new Set((input.costCenters ?? []).filter(c => isPayrollCenter(String(c.name ?? ''))).map(c => c.id))
+  return input.items.filter(item => !item.center_id || !payroll.has(item.center_id))
 }
 
 export function economicAccrual(input: EconomicsInput) {
   const i = input, monthOf = new Map(i.months.map(m => [String(m.id), String(m.month)]))
   const own = (rows: Row[]) => rows.filter(r => monthOf.get(String(r.month_id)) === i.month)
   const rawRev = own(i.revenue), rawCost = own(i.costs)
+  const planItems = economicPlanItems(i)
   if ([...i.revenue, ...i.costs].some(r => !monthOf.has(String(r.month_id)))) throw new Error('Competenza della riga mancante')
   const validRev = (r: Row) => knownAmount(r.amount_net) != null && knownAmount(r.vat_rate) != null && ['growth', 'digital'].includes(String(r.kind))
   const validCost = (r: Row) => knownAmount(r.actual) != null && knownAmount(r.budget) != null && typeof r.vat_applied === 'boolean' && knownAmount(r.vat_rate) != null
@@ -110,7 +128,7 @@ export function economicAccrual(input: EconomicsInput) {
   for (const l of i.links) coverage.set(l.stream_id, [...(coverage.get(l.stream_id) ?? []), l.project_id])
   const scheduled = linesForMonth(i.streams, i.installments, i.month, coverage)
   const missingRevenue = scheduled.filter(s => !rawRev.some(r => s.installment_id ? r.installment_id === s.installment_id : r.stream_id === s.stream_id))
-  const missingCosts = i.items.filter(it => fallsIn(it, i.month, i.installments.find(n => n.id === it.installment_id)?.due_month)
+  const missingCosts = planItems.filter(it => fallsIn(it, i.month, i.installments.find(n => n.id === it.installment_id)?.due_month)
     && !rawCost.some(c => c.cost_item_id === it.id))
   const ctx = rowContext({ month: i.month, months: i.months as { id: unknown; month: unknown }[], clients: i.clients,
     streams: i.streams as unknown as Row[], streamProjects: i.links })
@@ -128,7 +146,7 @@ export function economicAccrual(input: EconomicsInput) {
     || i.costs.some(r => !validCost(r) && monthOf.get(String(r.month_id))! <= i.month)
   const invalidSources = i.streams.some(s => s.status !== 'bozza' && (knownAmount(s.amount) == null || !['growth', 'digital'].includes(s.kind)))
     || i.installments.some(n => n.due_month <= i.month && knownAmount(n.amount) == null)
-    || i.items.some(it => it.is_active && knownAmount(it.amount) == null)
+    || planItems.some(it => it.is_active && knownAmount(it.amount) == null)
   const blockers = [!configOk && 'Parametri di ripartizione incompleti o non validi', !partners.length && 'Diritti dei soci mancanti',
     invalid && 'Righe numeriche incomplete nello storico', invalidSources && 'Valori contrattuali o di costo incompleti',
     !rawRev.length && 'Righe ricavo del mese assenti', !!missingRevenue.length && 'Occorrenze ricavo mancanti', !!missingCosts.length && 'Occorrenze costo mancanti',
@@ -149,7 +167,7 @@ export function economicAccrual(input: EconomicsInput) {
     || i.costs.some(c => takenMonths.has(monthOf.get(String(c.month_id))!) && !validCost(c))
   const historicalGaps = Array.from(takenMonths).some(m =>
     linesForMonth(i.streams, i.installments, m, coverage).some(s => !i.revenue.some(r => monthOf.get(String(r.month_id)) === m && (s.installment_id ? r.installment_id === s.installment_id : r.stream_id === s.stream_id)))
-    || i.items.some(it => it.project_id && fallsIn(it, m, i.installments.find(n => n.id === it.installment_id)?.due_month)
+    || planItems.some(it => it.project_id && fallsIn(it, m, i.installments.find(n => n.id === it.installment_id)?.due_month)
       && !i.costs.some(c => monthOf.get(String(c.month_id)) === m && c.cost_item_id === it.id)))
   const cashTotals = canCompute && !pendingInputs && !historicalGaps ? computeMonth(taken, marginCostsFor(mappedCost, takenMonths, i.month), config, partners,
     marginCostsFor(mappedCost, takenMonths, i.month), mappedRev.filter(r => takenMonths.has(r.month))) : null

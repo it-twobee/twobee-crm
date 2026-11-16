@@ -1,5 +1,12 @@
 # Passaggio Economics a Claude Code
 
+## Raccordi documentali — checkpoint 16 novembre 2026
+
+Audit in sola lettura con cutoff 15 novembre: [dossier e fonti](raccordi-economics-2026-11-15.md), [proposte esatte da approvare](raccordi-economics-proposti-2026-11-15.json). Undici collegamenti fattura passano la simulazione canonica; F24 ottobre 842,38 € recuperato e quadrato, con movimento candidato identificato. Nessuna scrittura economica applicata.
+
+Il Lab esclude dal piano cinque voci seed del centro Personale come il percorso canonico, conservando i costi HR registrati: restano tre ricavi e un costo attesi senza occorrenza per ottobre/novembre. Le 43 righe con riferimenti da raccordare comprendono cause sovrapposte, non solo divergenze fra registri; il dettaglio apre il movimento coinvolto. Il dossier aggiorna i conteggi delle sezioni precedenti. Saldi assoluti, copertura IVA e sostenibilità restano non certificati. Verifica visiva autenticata aperta: nessun browser collegato alla sessione CLI.
+
+
 Aggiornato il 15 novembre 2026. L'utente ha scelto di continuare qui con Codex;
 questo file mantiene la continuità se occorre passare a un altro terminale.
 Non è disponibile una misura dei crediti residui: non dichiararli esauriti.

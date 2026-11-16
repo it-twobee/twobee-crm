@@ -1,5 +1,12 @@
 # Progetto dei moduli Economics
 
+## Raccordi documentali — checkpoint 16 novembre 2026
+
+Audit in sola lettura con cutoff 15 novembre: [dossier e fonti](raccordi-economics-2026-11-15.md), [proposte esatte da approvare](raccordi-economics-proposti-2026-11-15.json). Undici collegamenti fattura passano la simulazione canonica; F24 ottobre 842,38 € recuperato e quadrato, con movimento candidato identificato. Nessuna scrittura economica applicata.
+
+Il Lab esclude dal piano cinque voci seed del centro Personale come il percorso canonico, conservando i costi HR registrati: restano tre ricavi e un costo attesi senza occorrenza per ottobre/novembre. Le 43 righe con riferimenti da raccordare comprendono cause sovrapposte, non solo divergenze fra registri; il dettaglio apre il movimento coinvolto. Il dossier aggiorna i conteggi delle sezioni precedenti. Saldi assoluti, copertura IVA e sostenibilità restano non certificati. Verifica visiva autenticata aperta: nessun browser collegato alla sessione CLI.
+
+
 ## Integrazione e usabilità Economics — 15 novembre 2026
 
 Chiusura implementativa del mandato UI e collegamenti: l’utente ha autorizzato il push su main al termine delle verifiche. Aggiunti percorsi IVA→fatture emesse/ricevute del trimestre e IVA→competenze da verificare; filtro fatture esplicito per emissione trimestrale, con storico integrale come default e note nel proprio trimestre. Un documento aperto per ID prevale sul filtro; un ID inesistente non seleziona un altro documento. Gli accordi aprono le singole righe economiche, con lato ricavo/costo esplicito, e offrono il percorso all’editor economico del cliente. Fonte trimestre dal calendario canonico di lib/vat.ts, senza nuove formule fiscali.

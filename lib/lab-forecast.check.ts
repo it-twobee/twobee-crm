@@ -22,6 +22,13 @@ assert.deepEqual(labForecast(input, { ...defaults, riskFund: true }).base, resul
 assert.equal(result.cashDelta, 0)
 assert.ok(result.delta.every(r => r.revenue === 0 && r.cost === 0 && r.companyBeforeCapacity === 0))
 assert.equal(result.proposal.status, 'incompleta', 'Saldo/IVA ignoti non producono numero di clienti necessario')
+const payrollSeed = { ...input.items[0], id: 'payroll-seed', center_id: 'hr', project_id: null, installment_id: null, frequency: 'mensile', start_month: null, amount: 9999 }
+const withoutPayrollDuplicate = labForecast({ ...input, costCenters: [{ id: 'hr', name: 'Personale' }], items: [...input.items, payrollSeed] }, defaults)
+assert.deepEqual(withoutPayrollDuplicate.base.rows.map(r => r.knownCost), result.base.rows.map(r => r.knownCost), 'Il vecchio seed Personale non diventa una previsione HR fittizia')
+assert.ok(withoutPayrollDuplicate.quality.some(q => q.includes('non assunto zero')), 'Il costo risorse escluso dal piano resta dichiarato da raccordare')
+assert.equal(withoutPayrollDuplicate.proposal.status, 'incompleta')
+const openedPayroll = labForecast({ ...input, costCenters: [{ id: 'hr', name: 'Personale' }], items: [payrollSeed], months: [{id:'dec-pay',month:'2026-12-01'}], costs: [{id:'pay',month_id:'dec-pay',actual:300,budget:300,vat_applied:false,vat_rate:0}] }, defaults)
+assert.equal(openedPayroll.base.rows[0].knownCost, 300, 'Registro HR già presente conservato anche nel previsionale')
 const frozen = JSON.stringify(input)
 const sim = labForecast(input, { ...defaults, growth: 1, digital: 1, growthProfile: 'g', digitalProfile: 'd', externalComplete: true })
 assert.equal(JSON.stringify(input), frozen, 'Nessuna modifica delle fonti')

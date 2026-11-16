@@ -28,6 +28,12 @@ assert.equal(proof([{ ...tx, amount: 500 }]).completedOn, null)
 assert.equal(proof([tx, { ...tx, id: 'late', amount: 10, booked_on: '2026-11-12' }]).completedOn, '2026-11-10', 'Eccedenza successiva non sposta il primo completamento')
 const a = { tx_id: 't', revenue_line_id: 'r', amount: 1220, evidence: 'certificata' }
 assert.equal(proof([tx], [a], [a]).covered, 1220, 'Registri equivalenti non duplicano la quota')
+assert.equal(proof([tx], [a], [a]).referenceIssues.length, 0, 'Due registri uguali non diventano una divergenza')
+const missingInvoice = economicProof([{ ...row, invoice_id: null }], [tx], [account], [doc], [a], [a], today).get('r')!
+assert.equal(missingInvoice.covered, null, 'La diagnosi non conferma un collegamento ancora assente')
+assert.deepEqual(missingInvoice.referenceIssues.map(r => r.code), ['fattura_riga_assente'])
+assert.equal(proof([tx], [a], [{ ...a, amount: 500 }]).referenceIssues[0].code, 'registri_divergenti')
+assert.equal(proof([tx], [{ ...a, amount: 1221 }]).referenceIssues[0].code, 'capienza_superata')
 assert.equal(proof([tx], [a], [{ ...a, amount: 500 }]).covered, null)
 assert.equal(proof([tx], [{ ...a, amount: 1221 }]).covered, null)
 assert.equal(proof([tx], [{ ...a, evidence: 'dichiarata' }]).covered, null)
@@ -39,6 +45,13 @@ assert.equal(acc.soci[0].matured, 150, '10% delivery più 5% commerciale condivi
 assert.equal(acc.soci[0].eligible, 150)
 assert.equal(acc.soci[0].settled, null)
 assert.equal(acc.soci[0].remaining, null)
+const seed = { id: 'seed', center_id: 'payroll', label: 'Voce Personale del vecchio piano', supplier: null, amount: 9999, frequency: 'mensile', is_active: true, project_id: null }
+const registeredPayroll = { id: 'actual-payroll', month_id: 'm', actual: 300, budget: 300, vat_applied: false, vat_rate: 0 }
+const payrollInput = { ...input, items: [seed], costs: [registeredPayroll], costCenters: [{ id: 'payroll', name: 'Personale' }] }
+assert.equal(economicAccrual(payrollInput).missingCosts.length, 0, 'Il residuo a piano Personale non è una seconda occorrenza del costo HR')
+assert.equal(economicAccrual(payrollInput).costsKnown, 300, 'Il costo realmente registrato resta nel conto economico')
+assert.equal(economicAccrual({ ...payrollInput, costCenters: [] }).missingCosts.length, 1, 'Senza identità dell’area non si elimina un costo dal piano')
+assert.equal(economicAccrual({ ...payrollInput, costCenters: [{ id: 'payroll', name: 'Altra area' }] }).missingCosts.length, 1)
 const withPartnerCost = economicAccrual({ ...input, costs: [{ id: 'pc', month_id: 'm', actual: 42, budget: 42, vat_applied: false, vat_rate: 0, partner_id: 'p0' }] })
 assert.equal(withPartnerCost.costsKnown, withPartnerCost.totals?.costs.actual, 'Stesso totale costi del motore, anche con spese imputate ai soci')
 assert.equal(economicAccrual({ ...input, today: '2026-11-09' }).soci[0].eligible, 0, 'Nessun incasso futuro presunto')

@@ -5,7 +5,7 @@ import { rowContext, projectedMonthRows, toRevenueLines, toCostLines } from '@/l
 import { computeMonth, rowToPlConfig, DEFAULT_PL_CONFIG, shiftMonth, type Partner } from '@/lib/pl'
 import { dueOf, addDays, collectionIndex, isTerms, type CashLine } from '@/lib/cash-calendar'
 import { payoutDateFor } from '@/lib/payout-window'
-import { economicCash, economicProof, type EconomicsInput } from '@/lib/lab-economics'
+import { economicCash, economicProof, economicPlanItems, type EconomicsInput } from '@/lib/lab-economics'
 import { knownAmount } from '@/lib/lab-deals'
 import { payoutPeople } from '@/lib/payout-report'
 
@@ -80,7 +80,7 @@ function hypothetical(input: EconomicsInput, o: ForecastOptions, from: string) {
     if (!anchor || !/^\d{4}-\d{2}-01$/.test(anchor) || originalInstallments.some(n => knownAmount(n.amount) == null) || (source.billing === 'one_off' && !originalInstallments.length)) { issues.push(`Calendario ${kind} incompleto`); continue }
     if (source.billing === 'one_off' && Math.round(originalInstallments.reduce((s, n) => s + Number(n.amount), 0) * 100) !== Math.round(source.amount * 100)) { issues.push(`Totale e rate del profilo ${kind} da raccordare`); continue }
     const start = shiftMonth(from, o.startOffset), shift = monthsApart(anchor, start)
-    const ownCosts = input.items.filter(it => it.project_id && projects.includes(it.project_id)) as CostItem[]
+    const ownCosts = economicPlanItems(input).filter(it => it.project_id && projects.includes(it.project_id)) as CostItem[]
     if (ownCosts.some(it => knownAmount(it.amount) == null || typeof it.vat_applied !== 'boolean' || knownAmount(it.vat_rate) == null
       || (it.payment_terms && !isTerms(it.payment_terms)) || (it.installment_id && !originalInstallments.some(n => n.id === it.installment_id))
       || (it.frequency !== 'mensile' && !it.start_month && !it.installment_id))) { issues.push(`Componenti esterni ${kind} incomplete`); continue }
@@ -100,7 +100,7 @@ function hypothetical(input: EconomicsInput, o: ForecastOptions, from: string) {
 
 function projection(input: EconomicsInput, o: ForecastOptions, extra: ReturnType<typeof hypothetical>, from: string) {
   const streams = [...input.streams, ...extra.streams], installments = [...input.installments, ...extra.installments]
-  const items = [...input.items as CostItem[], ...extra.items], config = rowToPlConfig(input.config[0])
+  const items = [...economicPlanItems(input) as CostItem[], ...extra.items], config = rowToPlConfig(input.config[0])
   const partners: Partner[] = input.partners.filter(p => p.is_active === true).map(p => ({ id: String(p.id), label: String(p.label), takes_delivery: p.takes_delivery === true, takes_residual: p.takes_residual === true }))
   const proof = economicProof([...input.revenue, ...input.costs], input.txs, input.accounts, input.invoices, input.allocations, input.legacy, input.today)
   const events: ForecastEvent[] = [], rows = []
@@ -155,7 +155,7 @@ export function labForecast(input: EconomicsInput, options: ForecastOptions) {
     ? knownAmount(input.config[0][k]) == null || (k.endsWith('_pct') && (Number(input.config[0][k]) < 0 || Number(input.config[0][k]) > 1))
     : typeof v === 'boolean' && typeof input.config[0][k] !== 'boolean')
     || input.streams.some(s => s.status !== 'bozza' && (knownAmount(s.amount) == null || knownAmount(s.vat_rate) == null))
-    || input.items.some(it => it.is_active && (knownAmount(it.amount) == null || knownAmount((it as CostItem).vat_rate) == null || typeof (it as CostItem).vat_applied !== 'boolean'))
+    || economicPlanItems(input).some(it => it.is_active && (knownAmount(it.amount) == null || knownAmount((it as CostItem).vat_rate) == null || typeof (it as CostItem).vat_applied !== 'boolean'))
     || input.revenue.some(r => knownAmount(r.amount_net) == null || knownAmount(r.vat_rate) == null)
     || input.costs.some(c => knownAmount(c.actual) == null || knownAmount(c.budget) == null || knownAmount(c.vat_rate) == null)) throw new Error('Fonte numerica incompleta')
   const from = shiftMonth(`${input.today.slice(0, 7)}-01`, 1), end = addDays(shiftMonth(from, options.horizon), -1)
@@ -174,7 +174,9 @@ export function labForecast(input: EconomicsInput, options: ForecastOptions) {
     'Costo risorse, oneri e capacità aggiuntiva non integralmente determinati', 'Riserva IVA, compensazioni e versamenti da raccordare',
     'Compensi già regolati e coda storica da riconciliare', ...extra.issues,
   ]
-  const undated = input.items.filter(it => it.is_active && it.frequency !== 'mensile' && !it.start_month && !it.installment_id)
+  const undated = economicPlanItems(input).filter(it => it.is_active && it.frequency !== 'mensile' && !it.start_month && !it.installment_id)
+  const payrollItems = input.items.length - economicPlanItems(input).length
+  if (payrollItems) quality.push(`${payrollItems} voci dell’area Personale escluse dal piano: costo delle risorse da raccordare al registro HR, non assunto zero`)
   if (undated.length) quality.push(`${undated.length} costi non mensili senza calendario esclusi dalla parte nota`)
   if (from.slice(0, 4) !== end.slice(0, 4)) quality.push('Orizzonte su due anni: parametri paghe e fisco futuri non certificati in questa lettura')
   if (!neutral && !options.externalComplete) quality.push('Completezza degli esterni del profilo non assunta nello scenario')

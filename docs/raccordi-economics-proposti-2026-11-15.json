@@ -1,0 +1,351 @@
+{
+  "status": "da_approvare",
+  "approved": false,
+  "applied": false,
+  "observedAt": "2026-11-15T19:49:49.188Z",
+  "asOf": "2026-11-15",
+  "sourceReadsTransactional": false,
+  "beforeApply": [
+    "Rileggere tutte le fonti e ricontrollare i controlli canonici; il dossier non è una transazione",
+    "Confermare la sessione e il ruolo economico di chi applica; attribuire le modifiche dove previsto",
+    "Non sovrascrivere un invoice_id diventato non nullo; fermare il caso cambiato",
+    "Non cambiare imponibili, percentuali, mesi o importi delle righe",
+    "Archiviare l’originale F24 attraverso il percorso privato esistente prima di dichiarare l’importazione completa"
+  ],
+  "invoiceLinks": [
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "06c60051-78bd-4aae-858a-a12f5c0c1f7c",
+      "label": "Canone growth — lead generation",
+      "month": "2026-06-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "df39472e-22dd-4a3f-8375-14f2c8a1f08a",
+        "number": "FPR 27/26",
+        "date": "2026-06-05",
+        "counterparty": "MARIETTA S.R.L.",
+        "total": 1464,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "c531c4bf-7f0b-41af-ac88-7c06f5fe2aa2"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1464,
+        "completedOn": "2026-06-18"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "082c5f26-ee0b-48ff-aef1-7bd71323882f",
+      "label": "Affinity — Canone growth — lead generation",
+      "month": "2026-05-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "a1a0aeba-51dd-41df-bdbb-82e9df1464b3",
+        "number": "FPR 7/26",
+        "date": "2026-05-18",
+        "counterparty": "AFFINITY S.R.L.",
+        "total": 1098,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "61c6ece9-7b21-401f-8393-5c2bbd31ac2b"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1098,
+        "completedOn": "2026-05-22"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "35824bee-a9e2-461e-b8ce-fccea0610a3c",
+      "label": "Seven — Test modulo inviti a fatturare — chiuso — Saldo",
+      "month": "2026-05-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "3fac83b3-2974-4634-a019-d3957475caf4",
+        "number": "FPR 24/26",
+        "date": "2026-05-26",
+        "counterparty": "SEVEN S.R.L.",
+        "total": 5490,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "3478dcae-d1f3-4948-948f-3bec29671bdb"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 5490,
+        "completedOn": "2026-05-26"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "7a24df91-b49a-4172-bda1-fc1e5a64cbb8",
+      "label": "Sito web — una tantum — Saldo",
+      "month": "2026-06-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "5daff245-4067-4b17-ba9a-29b594c5ead4",
+        "number": "FPR 32/26",
+        "date": "2026-06-05",
+        "counterparty": "PETITO COSTRUZIONI S.R.L.",
+        "total": 1830,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "b9a0c322-0c64-4111-8f6d-06572cad3cc9"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1830,
+        "completedOn": "2026-06-19"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "82d5aeef-0312-430b-89f3-cad4473d225e",
+      "label": "Plus Vending — Canone growth — lead generation",
+      "month": "2026-06-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "20153fe8-7af7-4990-9cce-988efe612302",
+        "number": "FPR 26/26",
+        "date": "2026-06-05",
+        "counterparty": "PLUS VENDING SOCIETA' A RESPONSABILITA' LIMITATA SEMPLIFICATA",
+        "total": 1464,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "b2ee9ba7-3c15-43f2-9cba-745596389976"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1464,
+        "completedOn": "2026-06-22"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "b604dbbd-8b9e-4118-9714-db904cf9aa2c",
+      "label": "CRM provvigionale Adamo — ecosistema completo — Rata 4 di 6",
+      "month": "2026-10-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "57822340-9d87-48a2-8421-620b69a58562",
+        "number": "FPR 65/26",
+        "date": "2026-10-30",
+        "counterparty": "SEVEN S.R.L.",
+        "total": 7930,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "1ade5f90-af1e-479f-8001-21fe21d50041"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 7930,
+        "completedOn": "2026-11-09"
+      }
+    },
+    {
+      "table": "pl_revenue_lines",
+      "lineId": "c59666b4-53a4-4b20-929e-f15cab687505",
+      "label": "Josè Restaurant | Tenuta Villa Guerra — Canone growth — lead generation",
+      "month": "2026-05-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "dbef1248-bcf1-4fcf-957f-8629e67ef1d6",
+        "number": "FPR 3/26",
+        "date": "2026-05-05",
+        "counterparty": "MARIETTA S.R.L.",
+        "total": 1464,
+        "direction": "emessa"
+      },
+      "sourceMovementIds": [
+        "2443116c-3ef8-43c3-8025-b8a841c5f563"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1464,
+        "completedOn": "2026-05-15"
+      }
+    },
+    {
+      "table": "pl_cost_lines",
+      "lineId": "5ea642de-2130-4fa5-8b81-38609a4e847e",
+      "label": "Subappalto Affinity — test modulo inviti a fatturare",
+      "month": "2026-05-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "f003c53c-5f03-4c95-a289-1802ed9a8014",
+        "number": "FPR 3/26",
+        "date": "2026-05-28",
+        "counterparty": "Affinity Srl",
+        "total": 3050,
+        "direction": "ricevuta"
+      },
+      "sourceMovementIds": [
+        "03c807d6-b22d-4ca3-adb2-42d98fd1ee19"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 3050,
+        "completedOn": "2026-05-29"
+      }
+    },
+    {
+      "table": "pl_cost_lines",
+      "lineId": "6b698f68-cbd0-432a-9166-bfcb5cc9aec4",
+      "label": "Annalisa Smiraglia — Consulenza marketing e digital",
+      "month": "2026-09-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "3f97fac8-fac6-4861-9e3b-718c218a1ad5",
+        "number": "7/2026",
+        "date": "2026-10-05",
+        "counterparty": "Gabriele Saraiello",
+        "total": 1500,
+        "direction": "ricevuta"
+      },
+      "sourceMovementIds": [
+        "78f2e4ee-c8ad-4d5c-86a6-7d05c793e0f9"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 1500,
+        "completedOn": "2026-10-19"
+      }
+    },
+    {
+      "table": "pl_cost_lines",
+      "lineId": "a55945f9-cfe3-4bec-85ea-7e91782462d6",
+      "label": "Gialeda — ente per il tirocinio di Agostino",
+      "month": "2026-05-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "5d940948-15f1-46a4-adab-2ab08856dc5d",
+        "number": "90/2026",
+        "date": "2026-05-29",
+        "counterparty": "GIALEDA SRL",
+        "total": 141.04,
+        "direction": "ricevuta"
+      },
+      "sourceMovementIds": [
+        "afa3e5fb-8e74-42ec-b272-ad2c6e4b49e8"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 141.04,
+        "completedOn": "2026-05-19"
+      }
+    },
+    {
+      "table": "pl_cost_lines",
+      "lineId": "ae4b23b8-6601-4398-b402-1dd1204c62c1",
+      "label": "Talenti — ente per il tirocinio di Agostino",
+      "month": "2026-06-01",
+      "expectedInvoiceId": null,
+      "proposedInvoice": {
+        "id": "b13cb81c-ce71-44eb-8fba-4c2631ee4465",
+        "number": "392/SL-2026",
+        "date": "2026-06-04",
+        "counterparty": "Talenti Srl",
+        "total": 366,
+        "direction": "ricevuta"
+      },
+      "sourceMovementIds": [
+        "d336330e-391f-4dd7-b3dd-44563fe095f6"
+      ],
+      "simulation": {
+        "canonicalChecksPassed": true,
+        "covered": 366,
+        "completedOn": "2026-06-03"
+      }
+    }
+  ],
+  "f24Import": {
+    "sourceEmail": "https://mail.google.com/mail/#all/1a11b3e05895e970",
+    "originalFilename": "TWO BEE PAGHE.pdf",
+    "sha256": "769fba9365923b12b945d96ae201df9f6b240bd21c05d3d194fb7a86f2ec029e",
+    "sizeBytes": 89404,
+    "sourcePdfHasReceipt": false,
+    "parsedBy": "leggiF24 + righeDalModello + check",
+    "document": {
+      "competenza": "2026-09-01",
+      "scadenza": "2026-10-16",
+      "righe": [
+        {
+          "sezione": "erario",
+          "codice": "1001",
+          "riferimento": "0009 2026",
+          "debito": 231.67,
+          "credito": 0
+        },
+        {
+          "sezione": "erario",
+          "codice": "1701",
+          "riferimento": "0009 2026",
+          "debito": 0,
+          "credito": 98.63
+        },
+        {
+          "sezione": "erario",
+          "codice": "1704",
+          "riferimento": "0009 2026",
+          "debito": 0,
+          "credito": 110.66
+        },
+        {
+          "sezione": "inps",
+          "codice": "5100",
+          "riferimento": "DM10 5145129795 092026",
+          "debito": 820,
+          "credito": 0
+        }
+      ],
+      "saldoFinale": 842.38,
+      "erarioDebito": 231.67,
+      "crediti": 209.29,
+      "inps": 820,
+      "inail": 0,
+      "altro": 0,
+      "quadra": true,
+      "avvisi": []
+    },
+    "existingPayrollPeriod": null,
+    "proposedMovement": {
+      "id": "0de73333-dc04-49cd-b30e-2594e7f24316",
+      "date": "2026-10-19",
+      "amount": -842.38,
+      "description": "i24 agenzia entrate - pag.to telematico - data incasso 16/10/2026 2026-10-16-22.30.27.094229004801",
+      "account": "Conto corrente Two Bee",
+      "source": "banca",
+      "kind": "imposta",
+      "invoiceId": null,
+      "revenueLineId": null,
+      "costLineId": null,
+      "payslipId": null,
+      "hrInvoiceId": null,
+      "currentAllocations": [],
+      "legacyAllocations": []
+    },
+    "plannedPaymentDateFromBookedOn": "2026-10-19",
+    "datePrintedInDescription": "2026-10-16",
+    "changes": [
+      "Registrare il modello con le sue quattro componenti, competenza settembre e scadenza 16 ottobre",
+      "Registrare la componente HR di settembre dal documento, senza un secondo costo nel P&L",
+      "Confermare solo il movimento specificato se resta libero; non modificare la sua data bancaria",
+      "Conservare originale e impronta nell’archivio privato; nessun versamento IVA implicito"
+    ]
+  },
+  "excluded": [
+    "Fatture differenti, registri divergenti, quote oltre capienza",
+    "Sei proposte documentali che non superano tutti i controlli del gruppo",
+    "Tre ricavi attesi non presenti e voce Klaviyo da chiarire",
+    "Regolamenti soci e riserva IVA non certificati"
+  ]
+}

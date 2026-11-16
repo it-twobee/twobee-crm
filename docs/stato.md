@@ -1,5 +1,12 @@
 # Dove siamo
 
+## Raccordi documentali — checkpoint 16 novembre 2026
+
+Audit in sola lettura con cutoff 15 novembre: [dossier e fonti](raccordi-economics-2026-11-15.md), [proposte esatte da approvare](raccordi-economics-proposti-2026-11-15.json). Undici collegamenti fattura passano la simulazione canonica; F24 ottobre 842,38 € recuperato e quadrato, con movimento candidato identificato. Nessuna scrittura economica applicata.
+
+Il Lab esclude dal piano cinque voci seed del centro Personale come il percorso canonico, conservando i costi HR registrati: restano tre ricavi e un costo attesi senza occorrenza per ottobre/novembre. Le 43 righe con riferimenti da raccordare comprendono cause sovrapposte, non solo divergenze fra registri; il dettaglio apre il movimento coinvolto. Il dossier aggiorna i conteggi delle sezioni precedenti. Saldi assoluti, copertura IVA e sostenibilità restano non certificati. Verifica visiva autenticata aperta: nessun browser collegato alla sessione CLI.
+
+
 ## Integrazione e usabilità Economics — 15 novembre 2026
 
 Chiusura dei percorsi: IVA→fatture del trimestre/competenze, accordo→riga economica/editor, originale fattura e accessi alle sezioni di gestione esistenti. Storico fatture integrale salvo filtro esplicito; contesto mese conservato. L’utente ha autorizzato commit/push su main a verifiche concluse. Nessuna migration, scrittura DB o promozione; saldi/riserva/regolamenti non documentati restano n/d. Verifiche finali passate: TypeScript, 137/137 gate Europe/Rome e build; Banca/Collegamenti/Fatture anche UTC e America/Los_Angeles; dieci ingressi HTTP anonimi 307 con parametri conservati e 17 chunk 200/MIME JS. Rilascio su main autorizzato; prova autenticata/visuale e promozione restano aperte. Vedere il dossier iniziale nel progetto per perimetro e limiti. Le righe seguenti descrivono i checkpoint locali precedenti.
