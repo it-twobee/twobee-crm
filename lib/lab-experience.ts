@@ -13,6 +13,7 @@ export const LAB_MODULES = [
 ] as const
 export type LabModuleKey = typeof LAB_MODULES[number]['key']
 export const labModule = (pathname: string) => LAB_MODULES.find(m => pathname === `/lab/${m.key}`)
+export const labPageTitle = (pathname: string) => labModule(pathname)?.title ?? (pathname === '/lab/verifiche' ? 'Verifiche e fonti da completare' : pathname === '/lab/fonti' ? 'Fonti e acquisizione' : 'Riepilogo del mese')
 
 export function journeyMonth(pathname: string, value: string | null, today: string) {
   return labContextMonth(value) ?? (pathname === '/lab/banca' ? `${today.slice(0, 7)}-01` : shiftMonth(`${today.slice(0, 7)}-01`, -1))

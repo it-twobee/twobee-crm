@@ -67,6 +67,8 @@ const LABELS: [RegExp, string][] = [
   [/^\/lab\/conto-economico$/, 'Conto economico · Lab'],
   [/^\/lab\/fatturazione$/, 'Fatture · Lab'],
   [/^\/lab\/banca$/, 'Banca · Lab'],
+  [/^\/lab\/verifiche$/, 'Verifiche · Lab'],
+  [/^\/lab\/fonti$/, 'Fonti · Lab'],
   [/^\/lab\/accordi$/, 'Accordi · Lab'],
   [/^\/lab\/risorse$/, 'Risorse e tasse · Lab'],
   [/^\/lab\/iva$/, 'IVA · Lab'],

@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Completamento prima della sostituzione — 16 novembre 2026
+
+Centro verifiche trasversale, anteprima estratti e viste dei grafici salvabili. [Capacità, perimetro e matrice delle mancanze](completamento-laboratorio-2026-11-16.md). Economics resta operativo; nessuna promozione o modifica ai dati finanziari.
+
 ## Raccordo banca e fatture — 16 novembre 2026
 
 Consolidato di cassa soltanto dai movimenti bancari reali, quote documentali comuni e navigazione bidirezionale. [Criteri, riscontro e priorità](banca-fatture-consolidato-2026-11-16.md). Nessuna scrittura DB o sostituzione Economics.

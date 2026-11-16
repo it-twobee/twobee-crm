@@ -1,7 +1,9 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useId, useMemo, useRef, useState } from 'react'
 import Link from '@/components/lab/LabLink'
+import { parseChartView } from '@/lib/lab-chart-view'
 import { chartCsv, chartValue, filterChartRows, type ChartRow, type ChartSeries } from '@/lib/lab-chart'
 
 type Props = { title: string; note: string; rows: ChartRow[]; series: ChartSeries[]; context: string; initialType?: 'bar' | 'line'; chartId?: string; singleGroup?: boolean; groupLabel?: string; initialGroup?: string }
@@ -16,6 +18,7 @@ function download(blob: Blob, name: string) {
 }
 export default function LabChart({ title, note, rows, series, context, initialType = 'bar', chartId, singleGroup = false, groupLabel = 'Conto del grafico', initialGroup }: Props) {
   const chartAnchor = chartId ?? `grafico-${title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+  const viewChart = `${usePathname()}#${chartAnchor}`
   const defaultGroup = singleGroup ? (initialGroup && rows.some(r => (r.groupId ?? r.group) === initialGroup) ? initialGroup : rows.find(r => r.group)?.groupId ?? rows.find(r => r.group)?.group ?? '') : ''
   const temporal = initialType === 'line'
   const id = useId(), svg = useRef<SVGSVGElement>(null)
@@ -40,6 +43,17 @@ export default function LabChart({ title, note, rows, series, context, initialTy
   const dates = rows.some(r => r.date)
   const filterContext = `${context} · filtro: ${query || 'tutte le voci'} · gruppo: ${groups.find(g => g.key === group)?.label ?? 'tutti'} · dal ${from || 'inizio'} al ${to || 'fine'} · ${filtered.length} voci · ordine ${sort} · serie ${active.map(s => s.label).join(', ')}`
   const reset = () => { setHeading(title); setType(initialType); setKeys(series.map(s => s.key)); setQuery(''); setGroup(defaultGroup); setFrom(''); setTo(''); setSort('source'); setSelected(null); setPage(0) }
+  const restoreView = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      if (file.size > 16000) throw new Error()
+      const view = parseChartView(await file.text(), viewChart, series.map(s => s.key), groups.map(g => g.key), temporal, singleGroup)
+      if (!view) throw new Error()
+      setHeading(view.heading); setType(view.type); setKeys(view.keys); setQuery(view.query); setGroup(view.group)
+      setFrom(view.from); setTo(view.to); setSort(view.sort); setPage(0); setSelected(null)
+      setMessage('Vista ripristinata sui dati attuali della sezione. Gli importi non sono salvati nel file.')
+    } catch { setMessage('Vista non compatibile con questo grafico o con le serie e i gruppi disponibili. Nessuna impostazione modificata.') }
+  }
   const exportImage = async (png: boolean) => {
     try {
       const source = svg.current
@@ -88,7 +102,10 @@ export default function LabChart({ title, note, rows, series, context, initialTy
       {!singleGroup && groups.length > 0 && <label className="text-2xs text-text-secondary">Gruppo<select className={control} value={group} onChange={e => { setGroup(e.target.value); setPage(0) }}>{!singleGroup && <option value="">Tutti i gruppi</option>}{groups.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}</select></label>}
       {dates && <><label className="text-2xs text-text-secondary">Dal<input type="date" className={control} value={from} onChange={e => { setFrom(e.target.value); setPage(0) }} /></label><label className="text-2xs text-text-secondary">Al<input type="date" className={control} value={to} onChange={e => { setTo(e.target.value); setPage(0) }} /></label></>}
     </div></details>
-    <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer py-1 text-sm text-gold-text">Personalizza titolo, vista e serie</summary><div className="mt-3 grid gap-3 sm:grid-cols-3"><label className="text-2xs text-text-secondary">Titolo<input maxLength={100} className={control} value={heading} onChange={e => setHeading(e.target.value)} /></label><label className="text-2xs text-text-secondary">Visualizzazione<select className={control} value={type} onChange={e => setType(e.target.value as 'bar' | 'line')}><option value="bar">Barre a confronto</option>{temporal && <option value="line">Andamento nel tempo</option>}</select></label><label className="text-2xs text-text-secondary">Ordine<select className={control} disabled={type === 'line'} value={sort} onChange={e => { setSort(e.target.value); setPage(0) }}><option value="source">Ordine della sezione</option><option value="label">Nome</option><option value="value">Valore assoluto decrescente</option></select></label></div><p className="mt-2 text-2xs text-text-secondary">Personalizzazione per questa apertura. Le linee mantengono l’ordine delle date; i confronti tra voci usano barre. I valori si modificano dal registro di origine.</p></details>
+    <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer py-1 text-sm text-gold-text">Personalizza titolo, vista e serie</summary><div className="mt-3 grid gap-3 sm:grid-cols-3"><label className="text-2xs text-text-secondary">Titolo<input maxLength={100} className={control} value={heading} onChange={e => setHeading(e.target.value)} /></label><label className="text-2xs text-text-secondary">Visualizzazione<select className={control} value={type} onChange={e => setType(e.target.value as 'bar' | 'line')}><option value="bar">Barre a confronto</option>{temporal && <option value="line">Andamento nel tempo</option>}</select></label><label className="text-2xs text-text-secondary">Ordine<select className={control} disabled={type === 'line'} value={sort} onChange={e => { setSort(e.target.value); setPage(0) }}><option value="source">Ordine della sezione</option><option value="label">Nome</option><option value="value">Valore assoluto decrescente</option></select></label></div><p className="mt-2 text-2xs text-text-secondary">Personalizzazione per questa apertura; puoi salvare le impostazioni in un file e riaprirle sullo stesso grafico. Le linee mantengono l’ordine delle date; i confronti tra voci usano barre. I valori si modificano dal registro di origine.</p></details>
+    <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer py-1 text-sm text-gold-text">Salva o ripristina la vista</summary><p className="mt-2 text-2xs text-text-secondary">Il file conserva titolo, filtri e serie, senza righe o importi. La ricerca può contenere nomi: condividilo solo con chi può consultarli. I dati vengono riletti dalla sezione corrente.</p><div className="mt-3 flex flex-wrap gap-3"><button type="button" className={button} onClick={() => {
+      download(new Blob([JSON.stringify({ version: 1, chart: viewChart, heading, type, keys, query, group, from, to, sort }, null, 2)], { type: 'application/json' }), 'vista-grafico.json'); setMessage('Impostazioni della vista salvate, senza importi.')
+    }}>Salva vista JSON</button><label className="block max-w-full text-2xs text-text-secondary">Ripristina vista JSON<input type="file" accept="application/json,.json" className="mt-1 block max-w-full text-sm text-text-primary" onChange={e => { void restoreView(e.target.files?.[0]); e.target.value = '' }} /></label></div></details>
     <fieldset className="flex flex-wrap gap-2"><legend className="sr-only">Serie visibili</legend>{series.map((s, n) => <label key={s.key} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-border px-3 text-2xs text-text-primary"><input type="checkbox" checked={keys.includes(s.key)} onChange={e => setKeys(e.target.checked ? [...keys, s.key] : keys.filter(k => k !== s.key))} /><span aria-hidden="true" className="h-3 w-3 rounded-sm" style={{ backgroundColor: `var(${palette[n % palette.length]})` }} />{s.label}</label>)}</fieldset>
     <p role="status" className="text-2xs text-text-secondary">{filtered.length} di {rows.length} voci · {active.length} serie. {filtered.reduce((count, r) => count + active.filter(s => chartValue(r.values[s.key]) == null).length, 0)} valori n/d. Filtri del grafico indipendenti dai totali della sezione. Clicca un punto o una barra per il dettaglio.</p>
     {from && to && from > to && <p role="alert" className="text-sm text-warning">La data iniziale supera quella finale.</p>}

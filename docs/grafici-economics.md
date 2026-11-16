@@ -5,7 +5,7 @@ Le nuove viste restano nel Lab e usano i dati già letti dalle sezioni. Il compo
 | Sezione | Grafico e fonte |
 |---|---|
 | Banca | Flussi giornalieri EUR da `bankReadout` e `balance`, con un conto alla volta selezionato per ID e stessi filtri dell’elenco. Giroconti/nascosti mantenuti, nessun consolidato fra conti e sottoconti. Apertura del giorno sui movimenti. |
-| Fatturazione | Serie mensile degli imponibili con segno da `byMonth`, sui documenti visibili nei filtri della pagina; solo EUR. Filtro esplicito per mese di emissione dal punto del grafico; non è un residuo o una prova di incasso. |
+| Fatturazione | Grafico principale delle quote attribuite a movimenti bancari reali per data bancaria. Serie documentale degli imponibili con segno da `byMonth` separata, con filtro esplicito per mese di emissione; solo EUR. Documenti e cassa rimangono letture distinte. |
 | Accordi | Selezione esclusiva tra canoni mensili e totali a corpo, mai confrontati come un unico valore mensile. Un accordo condiviso compare una volta; nessuna quota inventata sui progetti. |
 | Risorse | Costo da `resourceCost`, netto da registro e quote note da `salaryEvidence`, per persona e competenza. Onere stimato distinto dal documento; professionisti senza netto personale o pagato dedotto. |
 | F24 | Totale del modello e quote da `resourceF24`. La scadenza del modello filtra per data, senza riscrivere la competenza. |
@@ -16,7 +16,7 @@ Le nuove viste restano nel Lab e usano i dati già letti dalle sezioni. Il compo
 
 ## Uso
 
-Il grafico parte dalla selezione della pagina. Al suo interno si possono cercare voci, scegliere un gruppo, filtrare le date quando presenti e attivare/disattivare le serie. Questi ulteriori filtri non modificano i totali della pagina. «Personalizza» cambia titolo e ordinamento dei confronti a barre; le serie temporali possono usare linee o barre e le linee mantengono l’ordine cronologico. Le impostazioni valgono per l’apertura corrente, senza salvare dati personali nel browser.
+Il grafico parte dalla selezione della pagina. Al suo interno si possono cercare voci, scegliere un gruppo, filtrare le date quando presenti e attivare/disattivare le serie. Questi ulteriori filtri non modificano i totali della pagina. «Personalizza» cambia titolo e ordinamento dei confronti a barre; le serie temporali possono usare linee o barre e le linee mantengono l’ordine cronologico. Le impostazioni valgono per l’apertura corrente. Si possono salvare in JSON e ripristinare sullo stesso grafico, con verifica di serie, gruppi, date e formato. Il file non contiene righe o importi; la ricerca può contenere nomi. Nessuna persistenza automatica nel browser.
 
 I confronti per voce mostrano al massimo dodici elementi, le serie temporali fino a trentasei punti; i pulsanti Precedenti/Successive rendono consultabile tutta la selezione. Un punto/barra apre il dettaglio e, quando disponibile, il collegamento alla fonte. Su mobile i confronti per voce presentano importi completi e barre sul valore assoluto, con segno esplicito; le serie temporali sono scorribili nel proprio contenitore. La tabella accessibile contiene tutte le voci filtrate e i relativi link.
 
