@@ -46,7 +46,7 @@ assert.equal(source([{ ...tx, kind: 'giroconto' }]).movements[0].available, null
 assert.equal(source([{ ...tx, source: 'manuale' }]).movements.length, 0)
 assert.equal(source([{ ...tx, booked_on: '2026-11-17' }]).movements.length, 0)
 const before = JSON.stringify({ tx, docs, refs }); source(); assert.equal(JSON.stringify({ tx, docs, refs }), before)
-for (const path of ['lib/lab-matching-load.ts', 'app/(dashboard)/lab/abbina/page.tsx']) {
+for (const path of ['lib/lab-reconciliations-load.ts', 'app/(dashboard)/lab/abbina/page.tsx']) {
   const text = readFileSync(path, 'utf8'); assert.match(text, /await requireLabAdmin\(\)/); assert.doesNotMatch(text, /\.\s*(insert|update|upsert|delete|rpc)\s*\(/)
 }
 console.log('Tutti i controlli passano')

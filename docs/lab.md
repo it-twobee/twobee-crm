@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Raccordi in popup e registro — 17 novembre 2026
+
+Nuovo mandato: salvare, modificare, verificare e rimuovere i raccordi con conferma esplicita. [Implementazione, controlli e attivazione database](raccordi-popup-2026-11-17.md). Supera la sola anteprima per questa capacità; Economics non viene sostituito. Schema nuovo ancora da attivare in produzione.
+
 ## Abbinamento guidato — 16 novembre 2026
 
 Due percorsi semplici per cumulativi e pagamenti frazionati, selezione ricercabile e riepilogo quote/residui. [Esperienza e limite operativo dell’anteprima](abbinamento-banca-fatture-2026-11-16.md). Nessuna conferma persistente o sostituzione Economics.
@@ -74,7 +78,9 @@ Verifica: TypeScript, 133 gate in Europe/Rome, controllo risorse anche UTC e Ame
 
 Ambiente di prova **solo per il super admin** (`lib/lab-guard.ts`: `hasLabAccess`
 nel layout, `requireLabAdmin()` in ogni azione). Le nuove versioni delle sezioni
-economiche nascono qui, leggono i dati veri e **non scrivono niente**; finché non
+economiche nascono qui e leggono i dati veri. Dal mandato del 17 novembre i
+**raccordi banca–fatture** hanno una persistenza dedicata con conferma esplicita
+(vedi dossier in apertura); le altre capacità restano in sola lettura. Finché non
 vengono promosse, quelle in uso non cambiano.
 
 - **Mese** (`/lab/novembre`, §500): **solo banca**. Niente maturato, niente

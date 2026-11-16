@@ -1,5 +1,7 @@
 # Abbinamento guidato movimento–fatture
 
+> Aggiornamento 17 novembre: il mandato autorizza popup e persistenza dei raccordi, superando il precedente limite di sola anteprima per questa capacità. [Implementazione e attivazione ancora necessaria](raccordi-popup-2026-11-17.md). Non è una promozione di Economics.
+
 ## Esperienza
 
 `/lab/abbina`, raggiungibile dal movimento in Banca, dalla fattura e dalla navigazione comune. Due modalità: un movimento→più fatture; una fattura→più movimenti. Punto di partenza, selezione e riepilogo in tre passi. Ricerca che conserva i selezionati, fonti compatibili, disponibilità e residui visibili; dettagli e ritorni alle fonti esistenti. CSV della bozza con identificativi della coppia e quota. Non modifica importi economici a tastiera.

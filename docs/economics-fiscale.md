@@ -1,5 +1,9 @@
 # Economics — IVA, fiscale, fatturazione, provenienza
 
+## Raccordi in popup e registro — 17 novembre 2026
+
+Nuovo mandato: salvare, modificare, verificare e rimuovere i raccordi con conferma esplicita. [Implementazione, controlli e attivazione database](raccordi-popup-2026-11-17.md). Supera la sola anteprima per questa capacità; Economics non viene sostituito. Schema nuovo ancora da attivare in produzione.
+
 **Un numero si scrive in un modo solo** (§231, `lib/money.ts`). L'helper `eur`
 esisteva in **nove copie**, e ognuna sbagliava a modo suo: chi metteva l'euro
 davanti (`€2.673`) e chi dietro, chi raggruppava le migliaia e chi no. Il

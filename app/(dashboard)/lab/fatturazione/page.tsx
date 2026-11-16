@@ -62,7 +62,7 @@ export default async function LabInvoicesPage({ searchParams }: {
     <header>
       <h1 className="text-xl text-text-primary font-semibold">Fatturazione</h1>
       <p className="text-sm text-text-secondary">Emesse ↔ entrate bancarie. Ricevute ↔ uscite bancarie. I documenti sono distinti dai fatti consolidati in banca.</p>
-      <p className="text-2xs text-text-tertiary mt-1">Sola lettura · documenti fino al {today} · in verifica</p>
+      <p className="text-2xs text-text-tertiary mt-1">Documenti e quote bancarie · fino al {today} · in verifica</p>
     </header>
     {data.ok && <LabSectionGuide section="fatturazione" />}
     {!data.ok ? <p role="alert" className="p-4 rounded-xl bg-warning-dim text-warning text-sm">{data.message}</p> : <>

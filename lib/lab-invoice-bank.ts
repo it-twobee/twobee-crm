@@ -13,6 +13,7 @@ export type BankDocumentProof = { txId: string; amount: number; currency: string
 export type InvoiceBankProof = { invoiceId: string; currency: string; expected: number | null; paidKnown: number | null; residual: number | null;
   state: 'senza_riscontro' | 'da_verificare' | 'parziale' | 'coperta' | 'eccedente'; issues: string[];
   entries: { txId: string; accountId: string; account: string; date: string; amount: number; signedAmount: number; via: string }[]; referencedTxIds: string[]; references: { txId: string; accountId: string; account: string; date: string; amount: number; currency: string }[] }
+export type SavedInvoiceShare = { id: string; reconciliation_id: string; tx_id: string; invoice_id: string; amount: number }
 export type InvoiceBankResult = { transactions: Map<string, BankDocumentProof>; invoices: Map<string, InvoiceBankProof> }
 const cents = (n: number) => Math.round(n * 100)
 const sum = (xs: number[]) => xs.reduce((s, n) => s + cents(n), 0) / 100
@@ -21,7 +22,7 @@ const target = (a: Row) => `${targets(a)[0]}:${a[targets(a)[0]]}`
 const signature = (rows: Row[]) => rows.map(a => `${target(a)}:${cents(Number(a.amount))}`).sort().join('|')
 
 /** Bank events are the facts; documents and ledger rows explain portions of them. No matching by name/amount. */
-export function invoiceBankReconciliation(documents: LabInvoice[], txs: DocumentBankTx[], accounts: Account[], refs: Pick<LabConnectionData, 'revenue' | 'costs' | 'allocations' | 'legacy' | 'hrInvoices'>, today: string): InvoiceBankResult {
+export function invoiceBankReconciliation(documents: LabInvoice[], txs: DocumentBankTx[], accounts: Account[], refs: Pick<LabConnectionData, 'revenue' | 'costs' | 'allocations' | 'legacy' | 'hrInvoices' | 'invoiceShares'>, today: string): InvoiceBankResult {
   const documentsById = new Map(documents.map(i => [i.id, i])), active = refs.allocations.filter(a => !a.superseded)
   const transactions = new Map<string, BankDocumentProof>(), invoices = new Map<string, InvoiceBankProof>()
   const rowInvoice = (a: Row) => {
@@ -71,6 +72,12 @@ export function invoiceBankReconciliation(documents: LabInvoice[], txs: Document
       if (typeof hr?.invoice_id === 'string') direct.add(hr.invoice_id)
       if (direct.size > 1 || tx.revenue_line_id && tx.cost_line_id) issues.push('Più riferimenti diretti non coerenti')
       for (const id of Array.from(direct)) add(id, Math.abs(tx.amount), 'riferimento diretto')
+    }
+    const saved = (refs.invoiceShares ?? []).filter(s => s.tx_id === tx.id)
+    if (saved.length) {
+      if (candidates.size) issues.push('Raccordi salvati e riferimenti precedenti sovrapposti: verifica le quote')
+      if (saved.some(s => !Number.isFinite(s.amount) || s.amount <= 0) || cents(sum(saved.map(s => s.amount))) > cents(Math.abs(tx.amount))) issues.push('Quote salvate non compatibili con il movimento')
+      for (const share of saved) add(share.invoice_id, share.amount, 'raccordo confermato')
     }
     if (!account) issues.push('Conto o valuta non disponibile')
     if (candidates.size && (tx.kind === 'giroconto' || tx.transfer_pair_id)) issues.push('Giroconto: non è un incasso o pagamento di fattura')

@@ -9,6 +9,7 @@ type LabTable = 'bank_accounts' | 'bank_transactions' | 'invoices' | 'payment_al
   | 'payslips' | 'bank_tx_payslips' | 'personal_documents' | 'economics_documents'
   | 'f24_documents' | 'f24_lines' | 'vat_settlements'
   | 'pl_config' | 'pl_partners' | 'pl_payouts' | 'bank_tx_lines'
+  | 'bank_invoice_reconciliations' | 'bank_invoice_reconciliation_items' | 'bank_invoice_reconciliation_events'
 
 export async function readLabRows(table: LabTable, columns: string, today: string): Promise<Record<string, unknown>[]> {
   await requireLabAdmin()

@@ -42,7 +42,7 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
       <header>
         <h1 className="text-xl font-semibold text-text-primary">Banca</h1>
         <p className="text-sm text-text-secondary">Effettivo consolidato: solo entrate e uscite di origine banca. Le fatture spiegano i movimenti, non li sostituiscono.</p>
-        <p className="text-2xs text-text-tertiary mt-1">Sola lettura · importi lordi · dati osservati fino al {today} · in verifica</p>
+        <p className="text-2xs text-text-tertiary mt-1">Movimenti da estratto · importi lordi · dati osservati fino al {today} · in verifica</p>
       </header>
     {data.ok && <LabSectionGuide section="banca" />}
       <LabMonthPicker month={month} action="/lab/banca" parameters={{ q: query, riferimenti: filter, documenti: documentFilter, ...(selected ? { conto: selected } : {}) }} label="Mese dei movimenti" />

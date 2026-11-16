@@ -1,5 +1,7 @@
 # Banca e fatture — consolidato di cassa
 
+> Aggiornamento 17 novembre: il mandato autorizza popup e persistenza dei raccordi, superando il precedente limite di sola anteprima per questa capacità. [Implementazione e attivazione ancora necessaria](raccordi-popup-2026-11-17.md). Non è una promozione di Economics.
+
 Il consolidato di cassa del nuovo Laboratorio comprende soltanto movimenti di origine banca già osservati. Registrazioni manuali, derivati, spunte e date di pagamento del registro non generano fatti bancari. Maturato, fatturato e previsto restano misure distinte. Nessuna sezione Economics in uso viene sostituita: la promozione richiede il via libera esplicito dell’utente.
 
 ## Raccordo comune

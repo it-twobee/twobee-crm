@@ -1,5 +1,7 @@
 # Passaggio Economics a Claude Code
 
+> Aggiornamento 17 novembre: il mandato autorizza popup e persistenza dei raccordi, superando il precedente limite di sola anteprima per questa capacità. [Implementazione e attivazione ancora necessaria](raccordi-popup-2026-11-17.md). Non è una promozione di Economics.
+
 ## Completamento prima della sostituzione — 16 novembre 2026
 
 Centro verifiche trasversale, anteprima estratti e viste dei grafici salvabili. [Capacità, perimetro e matrice delle mancanze](completamento-laboratorio-2026-11-16.md). Economics resta operativo; nessuna promozione o modifica ai dati finanziari.

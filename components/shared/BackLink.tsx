@@ -70,6 +70,7 @@ const LABELS: [RegExp, string][] = [
   [/^\/lab\/verifiche$/, 'Verifiche · Lab'],
   [/^\/lab\/fonti$/, 'Fonti · Lab'],
   [/^\/lab\/abbina$/, 'Abbinamenti · Lab'],
+  [/^\/lab\/raccordi$/, 'Raccordi · Lab'],
   [/^\/lab\/accordi$/, 'Accordi · Lab'],
   [/^\/lab\/risorse$/, 'Risorse e tasse · Lab'],
   [/^\/lab\/iva$/, 'IVA · Lab'],

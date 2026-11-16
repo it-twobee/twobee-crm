@@ -1,8 +1,10 @@
+import type { SavedInvoiceShare } from '@/lib/lab-invoice-bank'
 import type { LabBankTx } from '@/lib/lab-bank'
 import { invoiceEconomicLinks } from '@/lib/lab-invoices'
 
 type Row = Record<string, unknown>
 export type LabConnectionData = {
+  invoiceShares?: SavedInvoiceShare[]
   revenue: Row[]; costs: Row[]; months: Row[]; allocations: Row[]; legacy: Row[]
   slips: Row[]; hrInvoices: Row[]; pdfs: Row[]; salaryLinks: Row[]; people: Row[]
   f24: Row[]; f24Lines: Row[]; settlements: Row[]; payouts: Row[]
@@ -57,6 +59,7 @@ function addF24(c: ReturnType<typeof collector>, data: LabConnectionData, f24Id:
 
 export function transactionConnections(tx: LabBankTx, data: LabConnectionData): LabConnections {
   const c = collector()
+  for (const share of (data.invoiceShares ?? []).filter(s => s.tx_id === tx.id)) c.add(`/lab/fatturazione?documento=${enc(share.invoice_id)}`, 'Fattura del raccordo confermato', 'Registro raccordi')
   if (id(tx.invoice_id)) c.add(`/lab/fatturazione?documento=${enc(tx.invoice_id!)}`, 'Fattura collegata al movimento', 'Riferimento diretto')
   const addReferences = (row: Row, origin: string) => {
     if (id(row.revenue_line_id)) addLine(c, data, String(row.revenue_line_id), 'ricavo', origin)

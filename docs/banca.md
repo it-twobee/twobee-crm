@@ -1,5 +1,9 @@
 # Banca (§189-190)
 
+## Raccordi in popup e registro — 17 novembre 2026
+
+Nuovo mandato: salvare, modificare, verificare e rimuovere i raccordi con conferma esplicita. [Implementazione, controlli e attivazione database](raccordi-popup-2026-11-17.md). Supera la sola anteprima per questa capacità; Economics non viene sostituito. Schema nuovo ancora da attivare in produzione.
+
 ## Banca (§189-190, `/economics/banca`)
 Il conto corrente e il conto economico sono la stessa cosa vista due volte: uno
 dice quando, l'altro dice di chi. La sezione li tiene agganciati.
