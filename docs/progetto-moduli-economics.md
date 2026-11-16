@@ -1,5 +1,10 @@
 # Progetto dei moduli Economics
 
+## Compensi soci leggibili anche con fonti incomplete — 16 novembre 2026
+
+Corretti il blocco indiscriminato dai mesi precedenti e l’identità Toto Piacente/Toto. Quote sulle righe note e sugli incassi verificati con dettaglio e qualifica parziale; registro compensi e prove bancarie caricati, senza inferire pagamenti dalle spunte. PDF v2 e grafico allineati. [Criteri, riscontro reale e verifiche](compensi-lab-2026-11-16.md). I totali incompleti e il debito complessivo non sono trasformati in importi da bonificare; nessuna scrittura DB.
+
+
 ## Grafici interattivi — 16 novembre 2026
 
 Grafici nel Lab per Banca, Fatturazione, Accordi, Risorse/F24, IVA, Conto economico/compensi, Previsionale/scenario e Progetti. Filtri, serie, titolo, barre/linee, dettaglio con fonti, vista compatta mobile e CSV/SVG/PNG. Dati dai motori esistenti; nessuna scrittura economica o promozione. [Uso, fonti e limiti di verifica](grafici-economics.md).

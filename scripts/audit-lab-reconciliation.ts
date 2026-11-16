@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { economicAccrual, economicCash, economicPlanItems, economicProof, type EconomicsInput } from '@/lib/lab-economics'
+import { economicsReport } from '@/lib/lab-economics-report'
 import { labForecast, forecastOptions } from '@/lib/lab-forecast'
 import { toLabInvoices } from '@/lib/lab-invoices'
 import { bankReadout, romeToday, type LabBankAccount, type LabBankTx } from '@/lib/lab-bank'
@@ -79,7 +80,7 @@ async function main() {
   const input = { today, observedAt, months: data.pl_months, revenue: data.pl_revenue_lines, costs: data.pl_cost_lines,
     clients: data.clients, streams: data.revenue_streams, installments: data.revenue_installments, links: data.revenue_stream_projects,
     items: data.cost_items, costCenters: data.cost_centers, config: data.pl_config, partners: data.pl_partners, invoices, accounts, txs,
-    allocations: data.payment_allocations, legacy: data.bank_tx_lines } as unknown as Omit<EconomicsInput, 'month'>
+    allocations: data.payment_allocations, legacy: data.bank_tx_lines, payouts: data.pl_payouts } as unknown as Omit<EconomicsInput, 'month'>
   const rowLabel = (row: Row) => ({ id: row.id, label: row.label, month: data.pl_months.find(m => m.id === row.month_id)?.month,
     invoiceId: row.invoice_id ?? null, net: knownAmount(row.amount_net ?? row.actual) })
   const active = data.payment_allocations.filter(a => !a.superseded)
@@ -88,7 +89,7 @@ async function main() {
     payoutId: a.payout_id ?? null, f24Id: a.f24_id ?? null, amount: knownAmount(a.amount), evidence: a.evidence ?? null })
   const months = selectedMonths.map(month => {
     const accrual = economicAccrual({ ...input, month }), cash = economicCash(accounts, txs, month, today)
-    return { month, blockers: accrual.blockers,
+    return { month, report: economicsReport({ ok: true, observedAt, input: { ...input, month }, cash, accrual }), blockers: accrual.blockers, compensi: accrual.soci, previewRevenueCount: accrual.previewRevenueCount, previewTakenCount: accrual.previewTakenCount, omitted: accrual.omitted,
       missingRevenue: accrual.missingRevenue.map(r => ({ streamId: r.stream_id, installmentId: r.installment_id, label: r.label, net: r.amount_net, client: data.clients.find(c => c.id === data.revenue_streams.find(s => s.id === r.stream_id)?.client_id)?.company_name })),
       missingCosts: accrual.missingCosts.map(c => ({ id: c.id, label: c.label, amount: c.amount, projectId: c.project_id, supplier: c.supplier, center: data.cost_centers.find(center => center.id === (c as unknown as Row).center_id)?.name })),
       drift: accrual.drift, incomplete: accrual.incomplete,

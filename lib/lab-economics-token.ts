@@ -14,7 +14,7 @@ export function readEconomicsReport(payload: string, token: string, userId: stri
   try {
     const signed = JSON.parse(payload)
     const observed = Date.parse(signed.report.observedAt)
-    if (signed.userId !== userId || signed.report.version !== 'lab-economics-v1' || !Number.isFinite(observed)
+    if (signed.userId !== userId || signed.report.version !== 'lab-economics-v2' || !Number.isFinite(observed)
       || now < observed || now - observed > 15 * 60 * 1000) return null
     return signed.report
   } catch { return null }

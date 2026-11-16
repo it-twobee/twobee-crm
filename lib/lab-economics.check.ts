@@ -43,6 +43,8 @@ const acc = economicAccrual(input)
 assert.equal(acc.soci.length, 3)
 assert.equal(acc.soci[0].matured, 150, '10% delivery più 5% commerciale condiviso')
 assert.equal(acc.soci[0].eligible, 150)
+assert.equal(acc.soci[2].matured, 150, 'Toto Piacente corrisponde al socio Toto, senza perdere il suo ID')
+assert.equal(acc.soci[2].eligible, 150)
 assert.equal(acc.soci[0].settled, null)
 assert.equal(acc.soci[0].remaining, null)
 const seed = { id: 'seed', center_id: 'payroll', label: 'Voce Personale del vecchio piano', supplier: null, amount: 9999, frequency: 'mensile', is_active: true, project_id: null }
@@ -69,6 +71,34 @@ assert.throws(() => economicAccrual({ ...input, months: [] }), /Competenza/)
 const changedStream = { id: 's', label: 'Accordo', kind: 'digital', billing: 'recurring', amount: 1000, vat_rate: .22, status: 'attivo', project_id: null, start_date: month, end_date: null } as EconomicsInput['streams'][number]
 assert.equal(economicAccrual({ ...input, streams: [changedStream], revenue: [{ ...row, stream_id: 's' }] }).soci[0].matured, null, 'Tipo divergente dall’accordo: non distribuire la percentuale vecchia')
 assert.equal(economicAccrual({ ...input, months: [{ ...input.months[0], status: 'chiuso' }], streams: [changedStream], revenue: [{ ...row, stream_id: 's' }] }).soci[0].matured, 150, 'Mese chiuso conserva la fotografia')
+// Incomplete months retain the provable part without pretending it is a complete entitlement.
+const missingStream = { ...changedStream, id: 'missing', kind: 'growth', billing: 'recurring', amount: 2000 } as EconomicsInput['streams'][number]
+const partial = economicAccrual({ ...input, streams: [missingStream] })
+assert.equal(partial.soci[0].matured, null)
+assert.equal(partial.soci[0].knownMatured, 150)
+assert.equal(partial.soci[2].knownMatured, 150)
+assert.equal(partial.soci[0].knownEligible, 150)
+assert.ok(partial.soci[0].rows.length > 0)
+assert.equal(partial.soci[0].prepared, null)
+assert.match(partial.soci[0].registrationIssues.join(' '), /non disponibile/)
+const oldMonth = '2026-09-01'
+const unrelatedHistory = economicAccrual({ ...input, months: [...input.months, { id: 'old', month: oldMonth }],
+  streams: [{ ...changedStream, id: 'historic', start_date: oldMonth, end_date: '2026-09-30' }],
+  revenue: [...input.revenue, { ...row, id: 'old-row', invoice_id: null, month_id: 'old', stream_id: 'historic' }] })
+assert.equal(unrelatedHistory.soci[0].matured, 150, 'An unrelated historic drift cannot block this month')
+const missingExternal = economicAccrual({ ...input, revenue: [{ ...row, kind: 'digital', project_id: 'project' }], items: [{ ...seed, center_id: null, project_id: 'project' }] })
+assert.equal(missingExternal.soci[0].knownMatured, null, 'Never compute Digital quotas as if an absent external cost were zero')
+assert.ok(missingExternal.omitted.some(r => r.why.includes('Costo esterno')))
+const scopeDenied = economicAccrual({ ...input, revenue: [{ ...row, kind: 'digital' }], items: [seed] })
+assert.equal(scopeDenied.soci[0].knownMatured, null, 'Digital with unknown scope is not a computable partial')
+const payout = { id: 'pay', month_id: 'm', person_key: 'p:p0', kind: 'socio', amount: 150, paid: true }
+const paidTx = { ...tx, id: 'out', amount: -150, invoice_id: null, revenue_line_id: null, kind: 'pagamento' } as EconomicsInput['txs'][number]
+const withEvidence = economicAccrual({ ...input, payouts: [payout], txs: [...input.txs, paidTx], allocations: [{ id: 'q', tx_id: 'out', payout_id: 'pay', amount: 150, evidence: 'certificata' }] })
+assert.equal(withEvidence.soci[0].prepared, 150)
+assert.equal(withEvidence.soci[0].settled, 150)
+assert.equal(withEvidence.soci[0].remaining, 0, 'Only the residual of this explicitly covered prepared record')
+assert.equal(economicAccrual({ ...input, payouts: [payout] }).soci[0].settled, null)
+assert.equal(economicAccrual({ ...input, payouts: [payout] }).soci[0].remaining, null)
 const cash = economicCash([account], [{ ...tx, booked_on: '2026-10-15', hidden_reason: 'nascosto' }], month, today)
 assert.equal(cash.incoming, 1220)
 assert.equal(cash.consolidated, null)

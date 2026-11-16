@@ -877,6 +877,8 @@ export const PERSON_ALIASES: Record<string, string> = {
   'walter giacobbe': 'Walter',
   'lucci marco': 'Marco',
   'marco lucci': 'Marco',
+  'toto piacente': 'Toto',
+  'piacente toto': 'Toto',
   'salvatore piacente': 'Toto',
   'piacente salvatore': 'Toto',
   's. piacente': 'Toto',

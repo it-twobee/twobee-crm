@@ -1,9 +1,10 @@
+import { payoutEvidence } from '@/lib/lab-payout-evidence'
 import { balance, grossOf, personName } from '@/lib/bank'
 import { bankReadout, monthEnd, type LabBankAccount, type LabBankTx } from '@/lib/lab-bank'
 import { knownAmount } from '@/lib/lab-deals'
 import { linesForMonth, contractDrift, DRIFT_LABEL, type RevenueStream, type Installment, type Coverage } from '@/lib/revenue'
 import { fallsIn, type SubItem } from '@/lib/subcontracts'
-import { computeMonth, rowToPlConfig, DEFAULT_PL_CONFIG, shiftMonth, type Partner, type PlTotals } from '@/lib/pl'
+import { computeMonth, rowToPlConfig, DEFAULT_PL_CONFIG, shiftMonth, type Partner, type PlTotals, covered } from '@/lib/pl'
 import { rowContext, toRevenueLines, toCostLines } from '@/lib/pl-rows'
 import { buildWindow, placeLine, marginCostsFor } from '@/lib/payout-window'
 import { payoutPeople } from '@/lib/payout-report'
@@ -108,7 +109,7 @@ export type EconomicsInput = {
   month: string; today: string; observedAt: string; months: Row[]; revenue: Row[]; costs: Row[]; clients: Row[];
   streams: RevenueStream[]; installments: Installment[]; links: { stream_id: string; project_id: string }[];
   items: (SubItem & { center_id?: string | null })[]; costCenters?: Row[]; config: Row[]; partners: Row[]; invoices: LabInvoice[]; accounts: LabBankAccount[];
-  txs: LabBankTx[]; allocations: Row[]; legacy: Row[];
+  txs: LabBankTx[]; allocations: Row[]; legacy: Row[]; payouts?: Row[];
 }
 
 export function economicPlanItems(input: Pick<EconomicsInput, 'items' | 'costCenters'>) {
@@ -142,15 +143,13 @@ export function economicAccrual(input: EconomicsInput) {
   const drift = contractDrift(mappedRev.filter(r => r.month <= i.month && i.months.find(m => m.month === r.month)?.status !== 'chiuso')
     .map(r => ({ ...r, stream_id: r.stream_id ?? null, project_id: r.project_id ?? null })), i.streams, coverage)
   for (const d of drift) proof.get(d.lineId)?.issues.push(`Riga e accordo divergono: ${d.fields.map(f => DRIFT_LABEL[f]).join(', ')}`)
-  const invalid = i.revenue.some(r => !validRev(r) && monthOf.get(String(r.month_id))! <= i.month)
-    || i.costs.some(r => !validCost(r) && monthOf.get(String(r.month_id))! <= i.month)
   const invalidSources = i.streams.some(s => s.status !== 'bozza' && (knownAmount(s.amount) == null || !['growth', 'digital'].includes(s.kind)))
     || i.installments.some(n => n.due_month <= i.month && knownAmount(n.amount) == null)
     || planItems.some(it => it.is_active && knownAmount(it.amount) == null)
   const blockers = [!configOk && 'Parametri di ripartizione incompleti o non validi', !partners.length && 'Diritti dei soci mancanti',
-    invalid && 'Righe numeriche incomplete nello storico', invalidSources && 'Valori contrattuali o di costo incompleti',
+    [...rawRev.filter(r => !validRev(r)), ...rawCost.filter(r => !validCost(r))].length > 0 && 'Righe numeriche incomplete nel mese', invalidSources && 'Valori contrattuali o di costo incompleti',
     !rawRev.length && 'Righe ricavo del mese assenti', !!missingRevenue.length && 'Occorrenze ricavo mancanti', !!missingCosts.length && 'Occorrenze costo mancanti',
-    !!drift.length && 'Righe dei mesi aperti divergenti dagli accordi'].filter(Boolean) as string[]
+    drift.some(d => rawRev.some(r => r.id === d.lineId)) && 'Righe del mese divergenti dagli accordi'].filter(Boolean) as string[]
   const canCompute = blockers.length === 0
   const totals = canCompute ? computeMonth(revenue, costs, config, partners) : null
   const current = i.months.find(m => m.month === i.month), previous = i.months.find(m => m.month === shiftMonth(i.month, -1))
@@ -171,21 +170,68 @@ export function economicAccrual(input: EconomicsInput) {
       && !i.costs.some(c => monthOf.get(String(c.month_id)) === m && c.cost_item_id === it.id)))
   const cashTotals = canCompute && !pendingInputs && !historicalGaps ? computeMonth(taken, marginCostsFor(mappedCost, takenMonths, i.month), config, partners,
     marginCostsFor(mappedCost, takenMonths, i.month), mappedRev.filter(r => takenMonths.has(r.month))) : null
+  // A partial view uses the same engine and complete digital denominators. Missing
+  // structure costs do not erase fixed Growth rights; missing project costs do.
+  const scopeIssues = (r: typeof mappedRev[number]) => {
+    const issues: string[] = []
+    if (drift.some(d => d.lineId === r.id)) issues.push('Riga divergente dall’accordo')
+    if (i.streams.some(s => s.id === r.stream_id && (knownAmount(s.amount) == null || !['growth', 'digital'].includes(s.kind)))) issues.push('Fonte contrattuale incompleta')
+    if (r.kind === 'digital' && !r.pass_through) {
+      const projects = covered(r), rawMonth = (rows: Row[]) => rows.filter(x => monthOf.get(String(x.month_id)) === r.month)
+      const overlaps = (ids: string[]) => ids.some(id => projects.includes(id))
+      if (!projects.length) issues.push('Ambito del progetto digital da attribuire')
+      if (rawMonth(i.revenue).some(x => !validRev(x))) issues.push('Denominatore ricavi del mese incompleto')
+      if (mappedRev.some(x => x.month === r.month && overlaps(covered(x)) && drift.some(d => d.lineId === x.id))) issues.push('Altre righe del progetto divergono dagli accordi')
+      if (i.costs.some(c => monthOf.get(String(c.month_id)) === r.month && projects.includes(String(c.project_id)) && !validCost(c))) issues.push('Esterni del progetto incompleti')
+      if (planItems.some(it => it.project_id && projects.includes(it.project_id) && fallsIn(it, r.month!, i.installments.find(n => n.id === it.installment_id)?.due_month)
+        && !i.costs.some(c => monthOf.get(String(c.month_id)) === r.month && c.cost_item_id === it.id))) issues.push('Costo esterno previsto assente dal registro')
+      if (linesForMonth(i.streams, i.installments, r.month!, coverage).some(x => overlaps(x.project_ids ?? (x.project_id ? [x.project_id] : []))
+        && !i.revenue.some(raw => monthOf.get(String(raw.month_id)) === r.month && (x.installment_id ? raw.installment_id === x.installment_id : raw.stream_id === x.stream_id)))) issues.push('Occorrenze del progetto assenti dal denominatore')
+      if (i.streams.some(s => overlaps(coverage.get(s.id) ?? (s.project_id ? [s.project_id] : [])) && knownAmount(s.amount) == null)) issues.push('Valore venduto del progetto incompleto')
+    }
+    return Array.from(new Set(issues))
+  }
+  const previewRevenue = revenue.filter(r => !scopeIssues(r).length)
+  const previewTaken = taken.filter(r => !scopeIssues(r).length)
+  const previewMonths = new Set(previewTaken.map(r => r.month))
+  const previewCosts = marginCostsFor(mappedCost, previewMonths, i.month)
+  const prerequisites = configOk && partners.length > 0 && new Set(partners.map(p => p.id)).size === partners.length
+  const previewTotals = prerequisites && previewRevenue.length ? computeMonth(previewRevenue, costs, config, partners, costs, revenue) : null
+  const previewCashTotals = prerequisites && previewTaken.length ? computeMonth(previewTaken, previewCosts, config, partners, previewCosts,
+    mappedRev.filter(r => previewMonths.has(r.month))) : null
+  const omitted = mappedRev.filter(r => r.month === i.month || taken.some(t => t.id === r.id)).flatMap(r => scopeIssues(r).map(why => ({ id: r.id, label: r.label, month: r.month!, why })))
+  const payoutProof = payoutEvidence(i.payouts, i.allocations, i.legacy, i.txs, i.accounts, i.today)
   const owners = i.clients.map(c => String(c.sales_owner_name ?? '')).filter(Boolean)
   const people = (t: PlTotals | null) => t ? payoutPeople({ t, owners }) : []
-  const matured = people(totals), eligible = people(cashTotals)
+  const matured = people(totals), eligible = people(cashTotals), previewMatured = people(previewTotals), previewEligible = people(previewCashTotals)
   const soci = SOCI.map(name => {
-    const matches = partners.filter(p => personName(name) === p.label)
+    const matches = partners.filter(p => personName(name) === personName(p.label))
     const partner = matches.length === 1 ? matches[0] : null
     const m = partner && totals ? matured.find(p => p.partnerId === partner.id) : null
     const e = partner && cashTotals ? eligible.find(p => p.partnerId === partner.id) : null
+    const pm = partner && previewTotals ? previewMatured.find(p => p.partnerId === partner.id) : null
+    const pe = partner && previewCashTotals ? previewEligible.find(p => p.partnerId === partner.id) : null
+    const aliases = new Set([name, partner?.label, ...owners.filter(o => personName(o) === personName(name))])
+    const registered = partner ? payoutProof.filter(p => p.monthId === current?.id && (p.kind === 'socio' && p.personKey === `p:${partner.id}`
+      || p.kind === 'commerciale' && p.personKey.startsWith('o:') && aliases.has(p.personKey.slice(2)))) : []
+    const registrationIssues = registered.flatMap(p => p.issues)
+    if (!registered.length) registrationIssues.push(i.payouts ? 'Compensi del mese non ancora preparati nel registro' : 'Registro compensi non disponibile')
+    const duplicateRegistration = new Set(registered.map(p => `${p.personKey}:${p.kind}`)).size !== registered.length
+    if (duplicateRegistration) registrationIssues.push('Più compensi per la stessa persona e natura')
+    const paid = registered.filter(p => p.paidKnown != null)
+    const prepared = registered.length && !duplicateRegistration && registered.every(p => p.amount != null && p.amount >= 0) ? sum(registered.map(p => p.amount!)) : null
+    const paidKnown = paid.length && !duplicateRegistration ? sum(paid.map(p => p.paidKnown!)) : null
+    const preparedResidual = registered.length && registered.every(p => p.residual != null) && !registrationIssues.length ? sum(registered.map(p => p.residual!)) : null
     return { name, partnerId: partner?.id ?? null, matured: partner && totals ? m?.total ?? 0 : null,
-      eligible: partner && cashTotals ? e?.total ?? 0 : null, settled: null, remaining: null,
-      rows: m?.rows ?? [], eligibleRows: e?.rows ?? [] }
+      eligible: partner && cashTotals ? e?.total ?? 0 : null, settled: paidKnown, remaining: preparedResidual,
+      knownMatured: partner && previewTotals ? pm?.total ?? 0 : null, knownEligible: partner && previewCashTotals ? pe?.total ?? 0 : null,
+      prepared, paidKnown, preparedResidual, registrationIssues, registered,
+      rows: (m ?? pm)?.rows ?? [], eligibleRows: (e ?? pe)?.rows ?? [] }
+
   })
   const lines = [...rawRev, ...rawCost].map(row => ({ row, proof: proof.get(String(row.id))!, side: rawRev.includes(row) ? 'ricavo' : 'costo' }))
   const revenueKnown = rawRev.filter(validRev), costsKnown = rawCost.filter(validCost)
-  return { totals, soci, window, observedCutoff, configOk, blockers, drift, missingRevenue, missingCosts, lines, proof,
+  return { totals, soci, previewRevenueCount: previewRevenue.length, previewTakenCount: previewTaken.length, omitted, window, observedCutoff, configOk, blockers, drift, missingRevenue, missingCosts, lines, proof,
     revenueKnown: revenueKnown.length ? sum(revenueKnown.map(r => Number(r.amount_net))) : null,
     costsKnown: costsKnown.length ? sum(costsKnown.map(c => Number(c.actual))) : null,
     revenueComplete: rawRev.length > 0 && revenueKnown.length === rawRev.length && !missingRevenue.length,

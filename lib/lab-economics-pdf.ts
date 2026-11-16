@@ -6,6 +6,7 @@ const clean = (s: string) => s.replace(/[‘’]/g, "'").replace(/[–—→−]
   .replace(/[^\u0009\u000A\u0020-\u007E\u00A0-\u00FF\u20AC\u00B7]/g, '')
 
 export function economicsPdf(report: EconomicsReport): Buffer {
+  const quota = (full: number | null, known: number | null) => full != null ? economicMoney(full) : known != null ? `${economicMoney(known)} (parziale)` : 'n/d'
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   let pageLabel = 'Compensi soci - TwoBee'
   const title = (label: string, sub: string) => {
@@ -24,13 +25,13 @@ export function economicsPdf(report: EconomicsReport): Buffer {
     },
   })
   title('Compensi soci - TwoBee', `${report.status} | Competenza ${report.month.slice(0, 7)} | ${report.version}\nOsservazione ${report.observedAt}\nErogazione prevista ${report.window.date}; riscontri fino al ${report.window.observedCutoff}`)
-  table(['Persona', 'Maturato', 'Erogabile', 'Regolato', 'Da versare'], report.people.map(p => [p.name, economicMoney(p.matured), economicMoney(p.eligible), economicMoney(p.settled), economicMoney(p.remaining)]), 52)
+  table(['Persona', 'Quota mese*', 'Da incassi*', 'Bonifici noti', 'Residuo registro'], report.people.map(p => [p.name, quota(p.matured, p.knownMatured), quota(p.eligible, p.knownEligible), economicMoney(p.settled), economicMoney(p.remaining)]), 52)
   const y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
   table(['Limiti e fonti'], report.limits.map(s => [s]), y)
   for (const person of report.people) {
     pageLabel = person.name
     doc.addPage()
-    title(person.name, `Competenza ${report.month.slice(0, 7)} | Maturato ${economicMoney(person.matured)} | Erogabile ${economicMoney(person.eligible)}\nRegolato ${economicMoney(person.settled)} | Da versare ${economicMoney(person.remaining)}\nLe due liste sono letture distinte: non sommare maturato ed erogabile.`)
+    title(person.name, `Competenza ${report.month.slice(0, 7)} | Quota mese ${quota(person.matured, person.knownMatured)} | Da incassi ${quota(person.eligible, person.knownEligible)}\nBonifici attribuiti ${economicMoney(person.settled)} | Residuo registro ${economicMoney(person.remaining)}\nLe due liste sono letture distinte: non sommare maturato ed erogabile.`)
     const rows = (label: string, details: typeof person.rows) => {
       const headerY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY
       let start = label === 'Maturato' ? 49 : (headerY ?? 49) + 9
@@ -40,7 +41,7 @@ export function economicsPdf(report: EconomicsReport): Buffer {
         `${economicMoney(r.base)}\nEsterni ${economicMoney(r.external)}\n${Math.round(r.pct * 10000) / 100}%`, economicMoney(r.amount),
       ]) : [['Nessuna voce determinata. Leggere importo e limiti del riepilogo.', '', '']], start)
     }
-    rows('Maturato', person.rows); rows('Erogabile nella finestra', person.eligibleRows)
+    rows('Maturato', person.rows); rows('Quote da incassi verificati nella finestra', person.eligibleRows)
   }
   doc.addPage()
   pageLabel = 'Raccordo della finestra'
