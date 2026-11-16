@@ -1,5 +1,7 @@
 # Economics — tenuta di cassa, certificazione, ponte
 
+**Mandato Laboratorio, 16 novembre 2026:** consolidato di cassa soltanto da movimenti reali di origine banca. Fatture emesse/ricevute spiegano le quote di entrata/uscita, con verso inverso per rimborsi. Spunte, registrazioni manuali, chiusure e date del registro non certificano pagamenti. Maturato e previsto rimangono distinti. [Raccordo e limiti](banca-fatture-consolidato-2026-11-16.md). Le regole storiche sotto descrivono i motori in uso, non una promozione del Lab.
+
 **Tenuta di cassa** (§225, `lib/cash-runway.ts`, in cima al conto economico). Il
 margine e i soldi sul conto sono due domande: il primo è **imponibile e di
 competenza**, i secondi sono **lordi e con una data**. Un mese può chiudere in

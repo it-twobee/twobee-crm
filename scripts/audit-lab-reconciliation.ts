@@ -1,3 +1,4 @@
+import { invoiceBankReconciliation } from '@/lib/lab-invoice-bank'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { economicAccrual, economicCash, economicPlanItems, economicProof, type EconomicsInput } from '@/lib/lab-economics'
 import { economicsReport } from '@/lib/lab-economics-report'
@@ -128,7 +129,9 @@ async function main() {
       pendingIssues: Array.from(new Set(groupIssues)), applied: false }
   })
   const fiscal = vatPeriods(input.months.filter(m => String(m.month) <= today), input.revenue, input.costs, data.vat_settlements, invoices, today)
-  const report = { observedAt, asOf: today, transactionalSnapshot: false, readonly: true,
+  const bankInvoice = invoiceBankReconciliation(invoices, txs, accounts, { revenue: data.pl_revenue_lines, costs: data.pl_cost_lines,
+    allocations: data.payment_allocations, legacy: data.bank_tx_lines, hrInvoices: data.hr_invoices }, today)
+  const report = { bankInvoice: { transactions: Array.from(bankInvoice.transactions.values()).filter(t => t.bank), invoices: Array.from(bankInvoice.invoices.values()) }, observedAt, asOf: today, transactionalSnapshot: false, readonly: true,
     counts: Object.fromEntries(tables.map(t => [t, data[t].length])), months, disputes, documentProposals,
     excludedPayrollPlan: input.items.filter(it => !economicPlanItems(input).includes(it)).map(it => ({id:it.id,label:it.label,amount:it.amount})),
     forecastKnown: labForecast({ ...input, month: selectedMonths.at(-1)! }, forecastOptions({})).base.rows.map(r => ({month:r.month,revenue:r.revenue,knownCost:r.knownCost})),

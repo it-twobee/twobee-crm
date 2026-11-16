@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Raccordo banca e fatture — 16 novembre 2026
+
+Consolidato di cassa soltanto dai movimenti bancari reali, quote documentali comuni e navigazione bidirezionale. [Criteri, riscontro e priorità](banca-fatture-consolidato-2026-11-16.md). Nessuna scrittura DB o sostituzione Economics.
+
 ## Percorso unico e verificabile — 16 novembre 2026
 
 Riepilogo per compiti e sequenza patto→documento→movimento→risultato; navigazione compatta, sorgente immediata e origine del controllo conservate nei collegamenti e nei form. Accessi comuni a sintesi/grafico/dati, ritorno alla voce con filtri di pagina e riapertura dei dettagli. Banca giornaliera per singolo conto; Fatture mensili con drill-down esplicito; canoni e totali a corpo separati; impostazioni ed esportazioni progressive. Stato di caricamento comune. [Flusso, grafici e limiti della verifica](percorso-economics-2026-11-16.md). Nessuna scrittura economica, nuovo permesso o promozione delle sezioni in uso.

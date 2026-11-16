@@ -2,9 +2,9 @@ import { labContextMonth } from '@/lib/lab-context'
 import { shiftMonth } from '@/lib/pl'
 
 export const LAB_MODULES = [
-  { key: 'accordi', title: 'Accordi', question: 'Che cosa abbiamo concordato?', action: 'Verifica patti e rate', source: 'Patti, rate e righe registrate', next: 'fatturazione' },
-  { key: 'fatturazione', title: 'Fatture', question: 'Quali documenti aspettano un riscontro?', action: 'Verifica i documenti', source: 'Fatture, rettifiche e riferimenti bancari', next: 'banca' },
-  { key: 'banca', title: 'Banca', question: 'Quali movimenti spiegano entrate e uscite?', action: 'Verifica i movimenti', source: 'Movimenti di origine banca e collegamenti', next: 'conto-economico' },
+  { key: 'banca', title: 'Banca', question: 'Quali movimenti reali costituiscono l’effettivo?', action: 'Verifica entrate e uscite', source: 'Solo movimenti di origine banca, con fatture e altre prove', next: 'fatturazione' },
+  { key: 'fatturazione', title: 'Fatture', question: 'Quali quote bancarie spiegano emesse e ricevute?', action: 'Verifica documenti e quote', source: 'Fatture e quote di movimenti bancari reali; registro separato', next: 'accordi' },
+  { key: 'accordi', title: 'Accordi', question: 'Quale patto spiega il documento e la competenza?', action: 'Verifica patti e rate', source: 'Patti, rate e righe registrate; non sono fatti bancari', next: 'conto-economico' },
   { key: 'risorse', title: 'Risorse & tasse', question: 'Quali costi e versamenti hanno una prova?', action: 'Verifica persone e modelli', source: 'Registri HR, originali, F24 e quote bancarie', next: 'iva' },
   { key: 'iva', title: 'IVA', question: 'Quale importo è dovuto e quale risulta versato?', action: 'Verifica liquidazione e prove', source: 'Liquidazioni, modelli e componenti IVA', next: 'conto-economico' },
   { key: 'conto-economico', title: 'Conto economico', question: 'Che cosa determina il risultato e le quote?', action: 'Verifica righe e compensi', source: 'Competenza, incassi verificati e piano canonico', next: 'previsionale' },

@@ -25,4 +25,8 @@ assert.equal(new URL(monthly[0].href!, 'https://lab.invalid').searchParams.get('
 
 const sameLabels = bankDailyChart(accounts.map(a => ({ ...a, label: 'Stesso nome' })), [tx('a', 10), tx('b', 999, { account_id: 'b' })], '2026-10-01', '2026-11-16', () => true)
 assert.deepEqual(filterChartRows(sameLabels, { query: '', group: 'a', from: '', to: '', sort: 'source' }, ['incoming']).map(r => r.values.incoming), [10], 'Account IDs, not labels, isolate a chart even with identical account names')
+
+const filteredDay = bankDailyChart(accounts, [tx('daily', 100)], '2026-10-01', '2026-11-16', () => true, { documenti: 'emesse', q: 'cliente' })[0]
+assert.equal(new URL(filteredDay.href!, 'https://lab.invalid').searchParams.get('documenti'), 'emesse')
+assert.equal(new URL(filteredDay.href!, 'https://lab.invalid').searchParams.get('q'), 'cliente')
 console.log('Tutti i controlli passano')

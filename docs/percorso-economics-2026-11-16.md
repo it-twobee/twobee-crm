@@ -1,6 +1,6 @@
 # Percorso Economics — semplificazione del 16 novembre 2026
 
-Il flusso principale è riconoscibile dal riepilogo e da ogni modulo: patto → documento → movimento → risultato. Persone, F24 e IVA alimentano la verifica; il Previsionale rimane una lettura distinta delle scelte future. Tutto resta nel Laboratorio, super admin e sola lettura. Le sezioni di gestione sono raggiunte per modificare la fonte; nessun nuovo comando monetario, schema o promozione è introdotto.
+Il flusso principale è riconoscibile dal riepilogo e da ogni modulo: movimento bancario → documento → patto/competenza → risultato. Persone, F24 e IVA alimentano la verifica; il Previsionale rimane una lettura distinta delle scelte future. Tutto resta nel Laboratorio, super admin e sola lettura. Le sezioni di gestione sono raggiunte per modificare la fonte; nessun nuovo comando monetario, schema o promozione è introdotto.
 
 ## Struttura comune
 

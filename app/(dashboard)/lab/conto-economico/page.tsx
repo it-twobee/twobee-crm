@@ -35,7 +35,7 @@ export default async function LabEconomicsPage({ searchParams }: { searchParams:
   </div>
   const stats = view === 'effettivo' ? [
     ['Entrato da fuori · EUR', money(c.incoming)], ['Uscito verso fuori · EUR', money(c.outgoing)],
-    ['Differenza di cassa · EUR', money(c.change)], ['Saldo finale consolidato', 'n/d'],
+    ['Differenza di cassa · EUR', money(c.change)], ['Saldo finale aggregato verificato', 'n/d'],
   ] : [
     ['Ricavi di competenza · registro', money(a.revenueComplete ? a.revenueKnown : null)],
     ['Costi di competenza · registro/stima', money(a.costsComplete ? a.costsKnown : null)],
