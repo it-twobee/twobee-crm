@@ -1,3 +1,4 @@
+import LabChart from '@/components/lab/LabChart'
 import { createClient } from '@/lib/supabase/server'
 import { type Installment, type RevenueStream, type Coverage } from '@/lib/revenue'
 import { projectDeal, type SubItem } from '@/lib/subcontracts'
@@ -104,6 +105,8 @@ export default async function ProgettiLabPage({ searchParams }: { searchParams: 
           </div>
         )}
 
+        <LabChart key={`progetti-${q}-${solo ?? ''}`} title="Venduto ed esterni per progetto · a corpo" note="Dati dal patto, IVA esclusa; non sono incassi né utile dopo il costo del team. Accordi condivisi senza attribuzione restano n/d. Canoni separati nella vista successiva." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Venduto a corpo' }, { key: 'external', label: 'Esterni a corpo' }, { key: 'margin', label: 'Margine prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.sold : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.external : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.margin : null } }))} />
+        <LabChart key={`progetti-canoni-${q}-${solo ?? ''}`} title="Canoni ed esterni mensili per progetto" note="Importi mensili dai patti, separati dai totali a corpo. Nessun rinnovo o incasso dedotto. Il costo del team aziendale resta escluso dal margine." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Canoni mensili' }, { key: 'external', label: 'Esterni mensili' }, { key: 'margin', label: 'Margine mensile prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.recurring : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.recurringExternal : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.monthlyMargin : null } }))} />
         <ul className="space-y-2">
           {rows.length === 0 && <li className="px-4 py-5 text-sm text-text-tertiary bg-surface border border-border rounded-2xl">Nessun progetto con cliente per questo filtro.</li>}
           {rows.map(r => {

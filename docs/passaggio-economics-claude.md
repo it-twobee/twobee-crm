@@ -1,5 +1,10 @@
 # Passaggio Economics a Claude Code
 
+## Grafici interattivi — 16 novembre 2026
+
+Grafici nel Lab per Banca, Fatturazione, Accordi, Risorse/F24, IVA, Conto economico/compensi, Previsionale/scenario e Progetti. Filtri, serie, titolo, barre/linee, dettaglio con fonti, vista compatta mobile e CSV/SVG/PNG. Dati dai motori esistenti; nessuna scrittura economica o promozione. [Uso, fonti e limiti di verifica](grafici-economics.md).
+
+
 ## Raccordi documentali — checkpoint 16 novembre 2026
 
 Audit in sola lettura con cutoff 15 novembre: [dossier e fonti](raccordi-economics-2026-11-15.md), [proposte esatte da approvare](raccordi-economics-proposti-2026-11-15.json). Undici collegamenti fattura passano la simulazione canonica; F24 ottobre 842,38 € recuperato e quadrato, con movimento candidato identificato. Nessuna scrittura economica applicata.

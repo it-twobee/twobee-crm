@@ -1,9 +1,10 @@
+import LabChart from '@/components/lab/LabChart'
 import LabSourceActions from '@/components/lab/LabSourceActions'
 import LabMonthPicker from '@/components/lab/LabMonthPicker'
 import Link from 'next/link'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabBank } from '@/lib/lab-bank-load'
-import { bankReadout, bankReference, labMonth, romeToday } from '@/lib/lab-bank'
+import { bankReadout, bankReference, labMonth, romeToday, type LabBankTx } from '@/lib/lab-bank'
 import { eur2 } from '@/lib/money'
 import { loadLabConnections } from '@/lib/lab-connections-load'
 import { transactionConnections } from '@/lib/lab-connections'
@@ -21,6 +22,9 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
   const references = new Map(data.ok && connections ? data.txs.map(tx => [tx.id, transactionConnections(tx, connections)]) : [])
   const href = (m: string, account?: string) => `/lab/banca?${new URLSearchParams({ m, q: query, riferimenti: filter, ...(account ? { conto: account } : {}) })}`
   const selected = data.ok && data.accounts.some(a => a.id === searchParams.conto) ? searchParams.conto : undefined
+  const visibleMovement = (tx: LabBankTx) => searchParams.movimento ? tx.id === searchParams.movimento :
+    (!query || `${tx.counterparty ?? ''} ${tx.description} ${tx.doc_ref ?? ''}`.toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it')))
+    && (!connections || filter === 'tutti' || (filter === 'presenti' ? !!references.get(tx.id)?.links.length : !references.get(tx.id)?.links.length && !references.get(tx.id)?.issues.length))
 
   return (
     <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
@@ -52,12 +56,11 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
           {!connections && <p className="mt-2 text-2xs text-warning">Fonti dei collegamenti non disponibili: il filtro per riferimenti è sospeso.</p>}
           {searchParams.movimento && <Link className="mt-2 inline-block py-2 text-2xs text-gold-text underline" href={href(month, selected)}>Esci dal movimento selezionato</Link>}
         </form>
+        <LabChart key={`banca-${month}-${selected ?? 'tutti'}-${query}-${filter}-${searchParams.movimento ?? ''}`} title="Entrate e uscite sui conti" note="Movimenti lordi EUR di origine banca nel mese, inclusi nascosti e giroconti. Conti e sottoconti separati dal filtro Gruppo; nessun saldo consolidato. Le serie non sono un utile." context={`Mese ${month} · osservazione ${today}`} series={[{ key: 'incoming', label: 'Entrate lorde' }, { key: 'outgoing', label: 'Uscite lorde' }]} rows={data.accounts.filter(a => (!selected || a.id === selected) && a.currency === 'EUR').flatMap(account => bankReadout(account, data.txs, month, today).period.filter(visibleMovement).map(tx => ({ id: tx.id, label: `${tx.booked_on} · ${tx.counterparty || tx.description || 'Movimento'}`, date: tx.booked_on, group: account.label, href: `${href(month, account.id)}&movimento=${encodeURIComponent(tx.id)}#movimento-${encodeURIComponent(tx.id)}`, values: { incoming: tx.amount >= 0 ? tx.amount : null, outgoing: tx.amount < 0 ? Math.abs(tx.amount) : null } }))).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))} />
         {!data.accounts.length && <p className="text-sm text-text-secondary">Nessun conto disponibile in archivio. Saldi n/d.</p>}
         {data.accounts.filter(a => !selected || a.id === selected).sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id) || Number(b.is_primary) - Number(a.is_primary) || a.label.localeCompare(b.label)).map(account => {
           const read = bankReadout(account, data.txs, month, today)
-          const visible = read.period.filter(tx => searchParams.movimento ? tx.id === searchParams.movimento :
-            (!query || `${tx.counterparty ?? ''} ${tx.description} ${tx.doc_ref ?? ''}`.toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it')))
-            && (!connections || filter === 'tutti' || (filter === 'presenti' ? !!references.get(tx.id)?.links.length : !references.get(tx.id)?.links.length && !references.get(tx.id)?.issues.length)))
+          const visible = read.period.filter(visibleMovement)
           const money = (n: number | null) => n == null || account.currency !== 'EUR' ? 'n/d' : eur2(n)
           return <section key={account.id} className="rounded-2xl border border-border bg-surface p-4 space-y-4">
             <header>

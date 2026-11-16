@@ -1,3 +1,4 @@
+import LabChart from '@/components/lab/LabChart'
 import Link from 'next/link'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabVat } from '@/lib/lab-vat-load'
@@ -39,6 +40,7 @@ export default async function LabVatPage({ searchParams }: { searchParams: { per
         ['Leva IVA utilizzata · stima', 'n/d', 'Base iniziale, detraibilità e consolidato da verificare.'],
       ].map(([label, value, why]) => <div key={label} className="rounded-xl border border-border bg-surface p-4"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl font-semibold text-text-primary mt-1 tabular-nums">{value}</dd><p className="text-2xs text-text-secondary mt-2">{why}</p></div>)}
     </dl>
+    <LabChart title="IVA per periodo · dovuto e versato" note="Dovuto dal modello oppure stimato sul registrato. Versato e residuo solo quando provati dal motore IVA; n/d non è zero. Il totale F24 non è il versato IVA." context={`Osservazione ${today} · tutti i periodi letti`} series={[{ key: 'due', label: 'Dovuto · modello/stima' }, { key: 'paid', label: 'Versato IVA provato' }, { key: 'remaining', label: 'Residuo provato' }]} rows={periods.map(p => ({ id: p.key, label: p.label, date: p.deadline, group: p.source === 'f24' ? 'Modello registrato' : 'Stima sul registrato', href: `/lab/iva?periodo=${p.key}`, values: { due: p.due, paid: p.payment.paid, remaining: p.payment.residual } }))} />
     <section className="rounded-2xl border border-border bg-surface p-4 space-y-3">
       <h2 className="text-base font-semibold text-text-primary">Versamenti e scadenze</h2>
       <p className="text-sm text-text-secondary">{selected.payment.residual === 0 ? 'Regolamento bancario documentato.' : selected.deadline < today ? 'Scadenza passata, regolamento da verificare.' : 'Regolamento da verificare.'} {selected.payment.why}.</p>

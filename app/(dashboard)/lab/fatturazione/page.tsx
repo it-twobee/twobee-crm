@@ -1,3 +1,5 @@
+import LabChart from '@/components/lab/LabChart'
+import { chartValue } from '@/lib/lab-chart'
 import Link from 'next/link'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabInvoices } from '@/lib/lab-invoices-load'
@@ -62,6 +64,7 @@ export default async function LabInvoicesPage({ searchParams }: {
       <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[[period && !focused ? 'Documenti del trimestre' : focused ? 'Documento selezionato' : 'Documenti in archivio', String(rows.length)], ['Aperti secondo il registro', String(rows.filter(r => r.evidence.open).length)], [direction === 'emessa' ? 'Residuo da incassare certificato' : 'Residuo da pagare certificato', 'n/d']].map(([label, value]) => <div key={label} className="p-4 bg-surface rounded-xl border border-border"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl text-text-primary font-semibold tabular-nums">{value}</dd></div>)}
       </dl>
+      <LabChart key={`fatture-${direction}-${state}-${query}-${period?.key ?? ''}-${focused?.id ?? ''}`} title={direction === 'emessa' ? 'Fatture emesse · documenti nella selezione' : 'Fatture ricevute · documenti nella selezione'} note="Importi lordi EUR dei documenti visibili, con segno delle note. Non rappresentano incassi, debiti residui o un totale al netto di rettifiche." context={`Registro ${direction} · ${period?.key ?? 'tutto lo storico'} · osservazione ${today}`} series={[{ key: 'total', label: 'Totale documento con segno' }]} rows={visible.filter(({ i }) => i.currency === 'EUR').map(({ i, evidence }) => ({ id: i.id, label: `${i.number} · ${i.counterpartyName}`, date: i.issuedOn, group: evidence.open ? 'Aperta nel registro' : 'Altri documenti', href: href(direction, state, i.id), values: { total: chartValue(signedTotal(i)) } })).sort((a, b) => a.date.localeCompare(b.date))} />
       <aside className="bg-surface border border-border rounded-xl p-4 text-sm text-text-secondary space-y-2">
         <p>Lo stato del registro e i movimenti bancari sono due riscontri distinti. Una data «pagata» non certifica l’incasso; un bonifico collegato non dimostra che copra tutta la fattura.</p>
         <p>Rettifiche, acconti, ritenute e quote vanno riconciliati prima di certificare il residuo. Gli arretrati restano visibili: nessun filtro automatico al solo mese corrente.</p>

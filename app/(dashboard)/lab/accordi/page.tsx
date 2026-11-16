@@ -1,3 +1,5 @@
+import LabChart from '@/components/lab/LabChart'
+import { chartValue } from '@/lib/lab-chart'
 import Link from 'next/link'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabDeals } from '@/lib/lab-deals-load'
@@ -58,6 +60,7 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
         return <>
           {searchParams.accordo && <div className="rounded-xl border border-border bg-surface p-3 text-sm text-text-secondary">{focused ? 'Accordo aperto dal collegamento: calendario e documenti sono espansi.' : 'L’accordo richiesto non è disponibile nella fonte letta.'} <Link href={contextMonth ? `/lab/accordi?m=${contextMonth}` : '/lab/accordi'} className="text-gold-text underline">Mostra tutti gli accordi</Link></div>}
           <p className="text-2xs text-text-secondary">{rows.length} accordi per questa selezione. I contratti condivisi compaiono una volta sola.</p>
+          <LabChart key={`accordi-${query}-${state}-${focused?.id ?? ''}`} title="Valore degli accordi" note="IVA esclusa. Il canone è l’importo mensile, l’accordo a corpo è il totale pattuito: serie distinte, senza sommarle come ricavi mensili." context={`Stato ${state || 'tutti'} · osservazione ${today}`} series={[{ key: 'recurring', label: 'Canone mensile' }, { key: 'oneoff', label: 'Totale a corpo' }]} rows={rows.map(({ stream, status }) => ({ id: stream.id, label: `${clients.get(stream.client_id ?? '') ?? 'Cliente da attribuire'} · ${stream.label}`, group: `${status.label} · ${stream.billing === 'recurring' ? 'mensile' : 'a corpo'}`, href: `/lab/accordi?accordo=${encodeURIComponent(stream.id)}`, values: { recurring: stream.billing === 'recurring' ? chartValue(stream.amount) : null, oneoff: stream.billing === 'one_off' ? chartValue(stream.amount) : null } }))} />
           <ul className="space-y-3">{rows.map(({ stream, scope, status }) => {
             const installments = data.installments.filter(i => i.stream_id === stream.id).sort((a, b) => a.due_month.localeCompare(b.due_month) || a.id.localeCompare(b.id))
             const costs = data.costs.filter(c => c.project_id && scope.ids.includes(c.project_id))
