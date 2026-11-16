@@ -1,6 +1,9 @@
+import { LabRecordScope } from '@/components/lab/LabJourney'
+import { invoiceMonthlyChart } from '@/lib/lab-chart-data'
+import LabSectionGuide from '@/components/lab/LabSectionGuide'
+import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
-import { chartValue } from '@/lib/lab-chart'
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabInvoices } from '@/lib/lab-invoices-load'
 import { invoiceEvidence, invoiceProposals, invoicePeriod, inInvoicePeriod } from '@/lib/lab-invoices'
@@ -20,7 +23,7 @@ const money = (value: number | null, currency: string) => value == null ? 'n/d'
   : currency === 'EUR' ? eur2(value) : `${value.toFixed(2)} ${currency}`
 
 export default async function LabInvoicesPage({ searchParams }: {
-  searchParams: { tipo?: string; stato?: string; documento?: string; q?: string; periodo?: string; m?: string }
+  searchParams: { tipo?: string; stato?: string; documento?: string; q?: string; periodo?: string; m?: string; emissione?: string }
 }) {
   await requireLabAdmin()
   const today = romeToday()
@@ -30,18 +33,20 @@ export default async function LabInvoicesPage({ searchParams }: {
   const state: State = searchParams.stato && Object.hasOwn(STATES, searchParams.stato) ? searchParams.stato as State : 'verifica'
   const query = (searchParams.q ?? '').trim().slice(0, 200)
   const contextMonth = labContextMonth(searchParams.m)
+  const documentMonth = labContextMonth(searchParams.emissione)
   const period = invoicePeriod(searchParams.periodo)
   const periods = data.ok ? Array.from(new Set(data.invoices.map(i => { const q = quarterOf(i.issuedOn); return `${q.year}-T${q.q}` }))).sort().reverse() : []
   if (period && !periods.includes(period.key)) periods.unshift(period.key)
-  const href = (tipo: string, stato: string, documento?: string) => {
+  const href = (tipo: string, stato: string, documento?: string, emissione = documentMonth) => {
     const params = new URLSearchParams({ tipo, stato })
     if (documento) params.set('documento', documento)
     if (contextMonth) params.set('m', contextMonth)
+    if (emissione) params.set('emissione', emissione)
     if (period) params.set('periodo', period.key)
     if (query) params.set('q', query)
     return `/lab/fatturazione?${params}`
   }
-  const rows = data.ok ? data.invoices.filter(i => i.direction === direction && (focused ? i.id === focused.id : inInvoicePeriod(i, period))).map(i => ({ i, evidence: invoiceEvidence(i, data.txs, today) })) : []
+  const rows = data.ok ? data.invoices.filter(i => i.direction === direction && (focused ? i.id === focused.id : inInvoicePeriod(i, period) && (!documentMonth || i.issuedOn.slice(0, 7) === documentMonth.slice(0, 7)))).map(i => ({ i, evidence: invoiceEvidence(i, data.txs, today) })) : []
   const visible = rows.filter(({ i, evidence }) => searchParams.documento ? i.id === searchParams.documento
     : (state === 'tutte' || (state === 'verifica' && evidence.needsReview) || (state === 'aperte' && evidence.open)
       || (state === 'note' && (!!i.rectifiesId || !!i.rectifiedBy?.length || isCreditNote(i.docType) || isDebitNote(i.docType))))
@@ -56,15 +61,16 @@ export default async function LabInvoicesPage({ searchParams }: {
       <p className="text-sm text-text-secondary">Che cosa è documentato e quale pagamento lo spiega?</p>
       <p className="text-2xs text-text-tertiary mt-1">Sola lettura · documenti fino al {today} · in verifica</p>
     </header>
+    {data.ok && <LabSectionGuide section="fatturazione" />}
     {!data.ok ? <p role="alert" className="p-4 rounded-xl bg-warning-dim text-warning text-sm">{data.message}</p> : <>
       <nav aria-label="Tipo fattura" className="flex gap-2">
         {(['emessa', 'ricevuta'] as const).map(tipo => <Link key={tipo} href={href(tipo, state)} aria-current={tipo === direction ? 'page' : undefined}
           className={`px-4 py-2 rounded-xl border text-sm ${tipo === direction ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{tipo === 'emessa' ? 'Emesse' : 'Ricevute'}</Link>)}
       </nav>
-      <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <dl id="sintesi" className="scroll-mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[[period && !focused ? 'Documenti del trimestre' : focused ? 'Documento selezionato' : 'Documenti in archivio', String(rows.length)], ['Aperti secondo il registro', String(rows.filter(r => r.evidence.open).length)], [direction === 'emessa' ? 'Residuo da incassare certificato' : 'Residuo da pagare certificato', 'n/d']].map(([label, value]) => <div key={label} className="p-4 bg-surface rounded-xl border border-border"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl text-text-primary font-semibold tabular-nums">{value}</dd></div>)}
       </dl>
-      <LabChart key={`fatture-${direction}-${state}-${query}-${period?.key ?? ''}-${focused?.id ?? ''}`} title={direction === 'emessa' ? 'Fatture emesse · documenti nella selezione' : 'Fatture ricevute · documenti nella selezione'} note="Importi lordi EUR dei documenti visibili, con segno delle note. Non rappresentano incassi, debiti residui o un totale al netto di rettifiche." context={`Registro ${direction} · ${period?.key ?? 'tutto lo storico'} · osservazione ${today}`} series={[{ key: 'total', label: 'Totale documento con segno' }]} rows={visible.filter(({ i }) => i.currency === 'EUR').map(({ i, evidence }) => ({ id: i.id, label: `${i.number} · ${i.counterpartyName}`, date: i.issuedOn, group: evidence.open ? 'Aperta nel registro' : 'Altri documenti', href: href(direction, state, i.id), values: { total: chartValue(signedTotal(i)) } })).sort((a, b) => a.date.localeCompare(b.date))} />
+
       <aside className="bg-surface border border-border rounded-xl p-4 text-sm text-text-secondary space-y-2">
         <p>Lo stato del registro e i movimenti bancari sono due riscontri distinti. Una data «pagata» non certifica l’incasso; un bonifico collegato non dimostra che copra tutta la fattura.</p>
         <p>Rettifiche, acconti, ritenute e quote vanno riconciliati prima di certificare il residuo. Gli arretrati restano visibili: nessun filtro automatico al solo mese corrente.</p>
@@ -73,26 +79,29 @@ export default async function LabInvoicesPage({ searchParams }: {
         {Object.entries(STATES).map(([key, label]) => <Link key={key} href={href(direction, key)} aria-current={!focused && state === key ? 'page' : undefined}
           className={`px-3 py-2 rounded-xl border text-sm ${!focused && state === key ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{label}</Link>)}
       </nav>
-      <form className="grid gap-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end" method="get">
+      <form className="grid gap-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-end" method="get"><LabReturnFields />
         <input type="hidden" name="tipo" value={direction} /><input type="hidden" name="stato" value={state} />
         {contextMonth && <input type="hidden" name="m" value={contextMonth} />}
         <label className="min-w-0 text-2xs text-text-secondary">Cerca numero o controparte<input name="q" defaultValue={query} maxLength={200} placeholder="Cerca numero o controparte" className="mt-1 min-h-11 w-full bg-surface border border-border-interactive text-text-primary rounded-xl px-3 py-2 text-sm" /></label>
         <label className="text-2xs text-text-secondary">Periodo di emissione<select name="periodo" defaultValue={period?.key ?? ''} className="mt-1 min-h-11 w-full min-w-0 max-w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary"><option value="">Tutto lo storico · inclusi arretrati</option>{periods.map(key => <option key={key} value={key}>{invoicePeriod(key)?.label ?? key}</option>)}</select></label>
-        <button type="submit" className="min-h-11 px-4 py-2 bg-gold text-on-gold rounded-xl text-sm font-medium">Filtra</button>
+        <label className="text-2xs text-text-secondary">Mese di emissione<input type="month" name="emissione" defaultValue={documentMonth?.slice(0, 7) ?? ''} className="mt-1 block min-h-11 w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary" /></label><button type="submit" className="min-h-11 px-4 py-2 bg-gold text-on-gold rounded-xl text-sm font-medium">Filtra</button>
       </form>
+      {searchParams.emissione && !documentMonth && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Mese di emissione non valido: nessun filtro mensile applicato.</p>}
       {searchParams.periodo && !period && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Periodo non valido: è mostrato lo storico, senza un filtro trimestrale.</p>}
       {period && !focused && <p className="rounded-xl bg-info-dim p-3 text-sm text-info">Emissione: {period.label}. Le note sono nel proprio trimestre; il filtro non sposta la competenza o la data bancaria. <Link className="underline" href={`/lab/iva?periodo=${period.key}`}>Apri il confronto IVA</Link> · <Link className="underline" href={`/lab/fatturazione?${new URLSearchParams({ tipo: direction, stato: state, ...(contextMonth ? { m: contextMonth } : {}) })}`}>Mostra tutto lo storico</Link></p>}
       <p role="status" className="text-2xs text-text-secondary">{visible.length} documenti per questa selezione.</p>
       {searchParams.documento && !focused && <p className="text-sm text-warning">Documento non presente nell’archivio letto. Nessun collegamento viene dedotto.</p>}
       {focused && <p className="text-sm text-text-secondary">Documento selezionato · <Link className="text-gold-text underline" href={href(direction, 'tutte')}>Torna all’elenco</Link></p>}
       {!visible.length && <p className="text-sm text-text-secondary">Nessun documento per questa selezione. La completezza delle fonti resta da verificare.</p>}
-      <ul className="space-y-3">
+      {documentMonth && <p className="text-sm text-text-secondary">Emissione {documentMonth.slice(0, 7)}. <Link href={href(direction, state, undefined, '')} className="inline-block py-2 text-gold-text underline">Rimuovi il filtro mese</Link></p>}
+      <LabChart chartId="analisi" key={`fatture-${direction}-${state}-${query}-${period?.key ?? ''}-${documentMonth ?? ''}-${focused?.id ?? ''}`} title="Documenti per mese di emissione" note="Imponibili EUR con segno delle note, dai documenti nella selezione. Zero indica nessun documento selezionato nel mese intermedio; non è prova di assenza di ricavi. Non rappresenta incassi o residui. Apri un mese per vedere le fatture." context={`Registro ${direction} · ${period?.key ?? 'storico selezionato'} · osservazione ${today}`} initialType="line" series={[{ key: 'documents', label: direction === 'emessa' ? 'Emesso netto · registro documenti' : 'Ricevuto netto · registro documenti' }]} rows={invoiceMonthlyChart(visible.map(r => r.i), direction, href(direction, state))} />
+      <ul id="dati-prove" className="space-y-3 scroll-mt-6">
         {visible.map(({ i, evidence }) => {
           const notes = (i.rectifiedBy ?? []).map(id => data.invoices.find(x => x.id === id)).filter(x => x != null)
           const parent = i.rectifiesId ? data.invoices.find(x => x.id === i.rectifiesId) : undefined
           const candidates = suggestions?.proposals.get(i.id) ?? []
           const kind = isCreditNote(i.docType) ? 'Nota di credito' : isDebitNote(i.docType) ? 'Nota di debito' : 'Fattura'
-          return <li key={i.id} className="bg-surface border border-border rounded-2xl p-4 space-y-3">
+          return <LabRecordScope key={i.id} anchor={`fattura-${i.id}`}><li id={`fattura-${i.id}`} className="bg-surface border border-border rounded-2xl p-4 space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:gap-3">
               <div className="min-w-0"><h2 className="text-sm font-semibold text-text-primary break-words">{i.counterpartyName}</h2><p className="text-2xs text-text-secondary">{kind} {i.number} · {i.issuedOn}</p></div>
               <span className="text-sm text-text-primary font-semibold tabular-nums whitespace-nowrap">{money(signedTotal(i), i.currency)}</span>
@@ -137,7 +146,7 @@ export default async function LabInvoicesPage({ searchParams }: {
               {candidates.map(c => <li key={c.item.id}>{c.item.bookedOn} · {eur2(c.item.amount)} · {c.why.join(', ')}{(suggestions?.contenders.get(c.item.id) ?? 0) > 1 && <span className="text-warning"> · candidato per {suggestions!.contenders.get(c.item.id)} fatture</span>}</li>)}
               <li>Nessun aggancio è salvato. La conferma umana sarà disponibile solo nel flusso promosso.</li>
             </ul></details>}
-          </li>
+          </li></LabRecordScope>
         })}
       </ul>
       <LabSourceActions actions={[{ label: 'Carica fatture e documenti', href: '/economics/carica' }, { label: 'Gestisci le fatture', href: `/economics/fatturazione${contextMonth ? `?m=${contextMonth}` : ''}` }]} />

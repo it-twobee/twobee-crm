@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict'
+import { LAB_MODULES, journeyHref, journeyMonth, labOrigin } from '@/lib/lab-experience'
+const base = 'https://lab.invalid'
+const u = (path: string) => new URL(path, base)
+const source = '/lab/banca?m=2026-10-01&conto=a&q=canone&riferimenti=senza'
+const first = journeyHref('/lab/fatturazione?documento=i', source, null, '2026-10-01', 'movimento-t')
+assert.equal(u(first).searchParams.get('m'), '2026-10-01')
+assert.equal(u(first).searchParams.get('documento'), 'i')
+const back = u(first).searchParams.get('from')!
+assert.equal(u(back).hash, '#movimento-t')
+assert.equal(u(back).searchParams.get('q'), 'canone')
+assert.equal(u(back).searchParams.get('conto'), 'a')
+const next = journeyHref('/lab/accordi?accordo=s', first, back, '2026-10-01', 'fattura-i', u(first).searchParams.get('origine'))
+assert.equal(u(u(next).searchParams.get('from')!).pathname, '/lab/fatturazione')
+assert.equal(u(u(next).searchParams.get('from')!).searchParams.get('documento'), 'i')
+assert.equal(u(u(next).searchParams.get('from')!).hash, '#fattura-i')
+assert.equal(u(next).searchParams.get('origine'), back, 'The root case stays stable across sections')
+assert.equal(u(u(next).searchParams.get('from')!).searchParams.has('from'), false, 'Return addresses do not recursively accumulate')
+const month = journeyHref('/lab/conto-economico?m=2026-08-01&riga=r', source, null, '2026-10-01')
+assert.equal(u(month).searchParams.get('m'), '2026-08-01', 'An explicit competence always wins over navigation context')
+const focus = journeyHref('/lab/banca?m=2026-10-01&giorno=2026-10-09', source, null, '2026-10-01')
+assert.equal(u(u(focus).searchParams.get('from')!).searchParams.get('riferimenti'), 'senza')
+assert.equal(journeyHref('#analisi', source, null, '2026-10-01'), '#analisi')
+assert.equal(journeyHref('https://example.com', source, null, '2026-10-01'), 'https://example.com')
+for (const value of ['https://evil.test', '//evil.test', '/lab\\evil', '/workspace', '/lab/%2f/evil', '/lab/%5cevil', '/lab/../../evil', '/lab?x=\nno']) assert.equal(labOrigin(value), null)
+assert.equal(labOrigin('/lab/banca?m=2026-10-01&from=x&origine=y#movimento-t'), '/lab/banca?m=2026-10-01#movimento-t')
+assert.equal(u(journeyHref('/economics/personale?m=2026-09-01', source, null, '2026-10-01')).searchParams.get('from'), source)
+assert.equal(journeyMonth('/lab/banca', null, '2026-11-16'), '2026-11-01')
+assert.equal(journeyMonth('/lab/risorse', null, '2026-11-16'), '2026-10-01')
+assert.equal(journeyMonth('/lab', '2026-07', '2026-11-16'), '2026-07-01')
+assert.equal(new Set(LAB_MODULES.map(m => m.key)).size, LAB_MODULES.length)
+assert.ok(LAB_MODULES.every(m => LAB_MODULES.some(n => n.key === m.next)))
+console.log('Tutti i controlli passano')

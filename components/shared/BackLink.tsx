@@ -63,6 +63,15 @@ export function samePortal(here: string, target: string): boolean {
 
 /** Come si chiama una pagina, per scriverlo nella freccia. */
 const LABELS: [RegExp, string][] = [
+  [/^\/lab$/, 'Riepilogo Economics'],
+  [/^\/lab\/conto-economico$/, 'Conto economico · Lab'],
+  [/^\/lab\/fatturazione$/, 'Fatture · Lab'],
+  [/^\/lab\/banca$/, 'Banca · Lab'],
+  [/^\/lab\/accordi$/, 'Accordi · Lab'],
+  [/^\/lab\/risorse$/, 'Risorse e tasse · Lab'],
+  [/^\/lab\/iva$/, 'IVA · Lab'],
+  [/^\/lab\/previsionale$/, 'Previsionale · Lab'],
+  [/^\/lab\/progetti$/, 'Progetti · Lab'],
   [/^\/workspace\/clienti$/, 'Clienti'],
   [/^\/workspace\/clienti\/[^/]+$/, 'Scheda cliente'],
   [/^\/workspace\/progetti$/, 'Progetti'],

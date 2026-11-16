@@ -4,9 +4,9 @@ Le nuove viste restano nel Lab e usano i dati già letti dalle sezioni. Il compo
 
 | Sezione | Grafico e fonte |
 |---|---|
-| Banca | Movimenti EUR di origine banca nel mese e conto selezionati, da `bankReadout`; stessi filtri dell’elenco. Entrate e uscite distinte, giroconti/nascosti mantenuti. Nessun consolidato fra conti principali e sottoconti. |
-| Fatturazione | Importi lordi con segno da `signedTotal`, per documento visibile nei filtri della pagina; solo EUR. Il documento rettificato resta un documento: non si presenta la somma come residuo o fatturato netto delle rettifiche. |
-| Accordi | Canoni mensili e totali a corpo in serie distinte. Un accordo condiviso compare una volta; nessuna quota inventata sui progetti. |
+| Banca | Flussi giornalieri EUR da `bankReadout` e `balance`, con un conto alla volta selezionato per ID e stessi filtri dell’elenco. Giroconti/nascosti mantenuti, nessun consolidato fra conti e sottoconti. Apertura del giorno sui movimenti. |
+| Fatturazione | Serie mensile degli imponibili con segno da `byMonth`, sui documenti visibili nei filtri della pagina; solo EUR. Filtro esplicito per mese di emissione dal punto del grafico; non è un residuo o una prova di incasso. |
+| Accordi | Selezione esclusiva tra canoni mensili e totali a corpo, mai confrontati come un unico valore mensile. Un accordo condiviso compare una volta; nessuna quota inventata sui progetti. |
 | Risorse | Costo da `resourceCost`, netto da registro e quote note da `salaryEvidence`, per persona e competenza. Onere stimato distinto dal documento; professionisti senza netto personale o pagato dedotto. |
 | F24 | Totale del modello e quote da `resourceF24`. La scadenza del modello filtra per data, senza riscrivere la competenza. |
 | IVA | Dovuto modello/stima da `vatPeriods`, versato e residuo da `vatPayment`. Compensazioni e mancanze mantengono n/d. |
@@ -16,15 +16,15 @@ Le nuove viste restano nel Lab e usano i dati già letti dalle sezioni. Il compo
 
 ## Uso
 
-Il grafico parte dalla selezione della pagina. Al suo interno si possono cercare voci, scegliere un gruppo, filtrare le date quando presenti e attivare/disattivare le serie. Questi ulteriori filtri non modificano i totali della pagina. «Personalizza» cambia titolo, barre/linee e ordinamento per nome o valore assoluto. Le impostazioni valgono per l’apertura corrente, senza salvare dati personali nel browser.
+Il grafico parte dalla selezione della pagina. Al suo interno si possono cercare voci, scegliere un gruppo, filtrare le date quando presenti e attivare/disattivare le serie. Questi ulteriori filtri non modificano i totali della pagina. «Personalizza» cambia titolo e ordinamento dei confronti a barre; le serie temporali possono usare linee o barre e le linee mantengono l’ordine cronologico. Le impostazioni valgono per l’apertura corrente, senza salvare dati personali nel browser.
 
-Ogni vista mostra al massimo dodici voci; i pulsanti Precedenti/Successive rendono consultabile tutta la selezione. Un punto/barra apre il dettaglio e, quando disponibile, il collegamento alla fonte. Su mobile la vista compatta presenta importi completi e barre sul valore assoluto, con segno esplicito. La tabella accessibile contiene tutte le voci filtrate e i relativi link.
+I confronti per voce mostrano al massimo dodici elementi, le serie temporali fino a trentasei punti; i pulsanti Precedenti/Successive rendono consultabile tutta la selezione. Un punto/barra apre il dettaglio e, quando disponibile, il collegamento alla fonte. Su mobile i confronti per voce presentano importi completi e barre sul valore assoluto, con segno esplicito; le serie temporali sono scorribili nel proprio contenitore. La tabella accessibile contiene tutte le voci filtrate e i relativi link.
 
 Gli importi si modificano dai registri di origine già collegati alle sezioni. La personalizzazione del grafico cambia la rappresentazione, non riscrive fatture, compensi o movimenti.
 
 ## Esportazione
 
-- CSV: tutte le voci filtrate e le sole serie attive, con titolo, note e contesto dei filtri. Separatore punto e virgola, decimali italiani, UTF-8 con BOM. Testi che potrebbero essere interpretati come formule sono neutralizzati; gli importi negativi restano numeri.
+- CSV: tutte le voci filtrate e le sole serie attive, con identificativo di ogni voce, collegamento alla fonte, titolo, note e contesto dei filtri. Separatore punto e virgola, decimali italiani, UTF-8 con BOM. Testi che potrebbero essere interpretati come formule sono neutralizzati; gli importi negativi restano numeri.
 - SVG: la vista corrente, con titolo, filtri, legenda e note complete. I colori del tema vengono risolti prima del download, per conservare la leggibilità fuori dall’app.
 - PNG: la stessa vista a risoluzione doppia. Il CSV mantiene comunque i valori esatti, anche quando l’asse mostra importi compatti.
 

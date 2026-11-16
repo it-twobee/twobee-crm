@@ -1,5 +1,10 @@
 # Dove siamo
 
+## Percorso unico e verificabile — 16 novembre 2026
+
+Riepilogo per compiti e sequenza patto→documento→movimento→risultato; navigazione compatta, sorgente immediata e origine del controllo conservate nei collegamenti e nei form. Accessi comuni a sintesi/grafico/dati, ritorno alla voce con filtri di pagina e riapertura dei dettagli. Banca giornaliera per singolo conto; Fatture mensili con drill-down esplicito; canoni e totali a corpo separati; impostazioni ed esportazioni progressive. Stato di caricamento comune. [Flusso, grafici e limiti della verifica](percorso-economics-2026-11-16.md). Nessuna scrittura economica, nuovo permesso o promozione delle sezioni in uso.
+
+
 ## Compensi soci leggibili anche con fonti incomplete — 16 novembre 2026
 
 Corretti il blocco indiscriminato dai mesi precedenti e l’identità Toto Piacente/Toto. Quote sulle righe note e sugli incassi verificati con dettaglio e qualifica parziale; registro compensi e prove bancarie caricati, senza inferire pagamenti dalle spunte. PDF v2 e grafico allineati. [Criteri, riscontro reale e verifiche](compensi-lab-2026-11-16.md). I totali incompleti e il debito complessivo non sono trasformati in importi da bonificare; nessuna scrittura DB.

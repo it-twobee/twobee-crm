@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { chartCsv, chartValue, filterChartRows, type ChartRow } from '@/lib/lab-chart'
 
 const rows: ChartRow[] = [
-  { id: 'a', label: '=HYPERLINK("x")', group: 'Banca', date: '2026-10-01', values: { cost: -12.34, paid: null } },
+  { id: 'a', href: '/lab/banca?movimento=originale', label: '=HYPERLINK("x")', group: 'Banca', date: '2026-10-01', values: { cost: -12.34, paid: null } },
   { id: 'b', label: 'Risorsa', group: 'HR', date: '2026-11-01', values: { cost: 0, paid: 1 } },
   { id: 'c', label: 'Senza data', values: { cost: null, paid: null } },
 ]
@@ -18,6 +18,7 @@ assert.deepEqual(filterChartRows(rows, { ...all, sort: 'value' }, ['paid']).map(
 assert.deepEqual(rows.map(r => r.id), ['a', 'b', 'c'], 'Filtering and ordering never mutate the canonical source')
 const csv = chartCsv('Titolo', 'Fonte parziale', rows, [{ key: 'cost', label: 'Costo' }], 'Ottobre · filtro Banca')
 assert.ok(csv.startsWith('\uFEFF'))
+assert.ok(csv.includes('ID voce') && csv.includes('/lab/banca?movimento=originale'), 'Exported numbers retain their identifier and source')
 assert.ok(csv.includes("'" + '=HYPERLINK(""x"")'))
 assert.ok(csv.includes('"-12,34"'), 'Negative monetary values remain numeric')
 assert.ok(csv.includes('"n/d"'))

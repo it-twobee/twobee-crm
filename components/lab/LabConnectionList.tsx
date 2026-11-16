@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import type { LabConnections } from '@/lib/lab-connections'
 
 export default function LabConnectionList({ connections }: { connections: LabConnections | null }) {

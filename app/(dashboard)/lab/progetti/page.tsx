@@ -1,9 +1,12 @@
+import { LabRecordScope } from '@/components/lab/LabJourney'
+import LabSectionGuide from '@/components/lab/LabSectionGuide'
+import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
 import { createClient } from '@/lib/supabase/server'
 import { type Installment, type RevenueStream, type Coverage } from '@/lib/revenue'
 import { projectDeal, type SubItem } from '@/lib/subcontracts'
 import { eur2 } from '@/lib/money'
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { ChevronLeft, Info } from 'lucide-react'
 
 export const revalidate = 0
@@ -83,7 +86,8 @@ export default async function ProgettiLabPage({ searchParams }: { searchParams: 
       </div>
 
       <div className="max-w-5xl mx-auto px-3 sm:px-4 pt-3 space-y-3">
-        <form className="flex gap-2" action="/lab/progetti">
+        <LabSectionGuide section="progetti" />
+        <form className="flex gap-2" action="/lab/progetti"><LabReturnFields />
           <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Cerca progetto o cliente"
             aria-label="Cerca progetto o cliente"
             className="flex-1 min-w-0 min-h-[44px] px-3 rounded-xl bg-surface border border-border-interactive text-sm text-text-primary" />
@@ -105,15 +109,16 @@ export default async function ProgettiLabPage({ searchParams }: { searchParams: 
           </div>
         )}
 
-        <LabChart key={`progetti-${q}-${solo ?? ''}`} title="Venduto ed esterni per progetto · a corpo" note="Dati dal patto, IVA esclusa; non sono incassi né utile dopo il costo del team. Accordi condivisi senza attribuzione restano n/d. Canoni separati nella vista successiva." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Venduto a corpo' }, { key: 'external', label: 'Esterni a corpo' }, { key: 'margin', label: 'Margine prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.sold : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.external : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.margin : null } }))} />
-        <LabChart key={`progetti-canoni-${q}-${solo ?? ''}`} title="Canoni ed esterni mensili per progetto" note="Importi mensili dai patti, separati dai totali a corpo. Nessun rinnovo o incasso dedotto. Il costo del team aziendale resta escluso dal margine." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Canoni mensili' }, { key: 'external', label: 'Esterni mensili' }, { key: 'margin', label: 'Margine mensile prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.recurring : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.recurringExternal : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.monthlyMargin : null } }))} />
-        <ul className="space-y-2">
+        <dl id="sintesi" className="grid gap-3 sm:grid-cols-3">{[['Progetti selezionati', rows.length], ['Da quotare', daQuotare], ['Margine negativo nel patto', negativi]].map(([label, count]) => <div key={String(label)} className="rounded-xl border border-border bg-surface p-4"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-text-primary">{count}</dd></div>)}</dl>
+        <LabChart chartId="analisi" key={`progetti-${q}-${solo ?? ''}`} title="Venduto ed esterni per progetto · a corpo" note="Dati dal patto, IVA esclusa; non sono incassi né utile dopo il costo del team. Accordi condivisi senza attribuzione restano n/d. Canoni separati nella vista successiva." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Venduto a corpo' }, { key: 'external', label: 'Esterni a corpo' }, { key: 'margin', label: 'Margine prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.sold : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.external : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.margin : null } }))} />
+        <details open={!rows.some(r => r.deal.sold > 0)} className="rounded-2xl border border-border p-4"><summary className="cursor-pointer py-1 text-sm text-gold-text">Canoni ed esterni mensili · analisi separata</summary><div className="mt-3"><LabChart key={`progetti-canoni-${q}-${solo ?? ''}`} title="Canoni ed esterni mensili per progetto" note="Importi mensili dai patti, separati dai totali a corpo. Nessun rinnovo o incasso dedotto. Il costo del team aziendale resta escluso dal margine." context="Progetti nella selezione · patti registrati" series={[{ key: 'sold', label: 'Canoni mensili' }, { key: 'external', label: 'Esterni mensili' }, { key: 'margin', label: 'Margine mensile prima del team' }]} rows={rows.map(r => ({ id: r.id, label: `${r.client ?? ''} · ${r.name}`, href: `/progetti/${r.id}`, values: { sold: r.deal.quoted && !r.sharedWith.length ? r.deal.recurring : null, external: r.deal.quoted && !r.sharedWith.length ? r.deal.recurringExternal : null, margin: r.deal.quoted && !r.sharedWith.length ? r.deal.monthlyMargin : null } }))} /></div></details>
+        <ul id="dati-prove" className="space-y-2 scroll-mt-6">
           {rows.length === 0 && <li className="px-4 py-5 text-sm text-text-tertiary bg-surface border border-border rounded-2xl">Nessun progetto con cliente per questo filtro.</li>}
           {rows.map(r => {
             const d = r.deal
             const nd = r.sharedWith.length > 0 && !d.quoted
             return (
-              <li key={r.id} className="bg-surface border border-border rounded-2xl px-4 py-3">
+              <LabRecordScope key={r.id} anchor={`progetto-${r.id}`}><li id={`progetto-${r.id}`} className="bg-surface border border-border rounded-2xl px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <Link href={`/progetti/${r.id}`} className="text-sm font-semibold text-text-primary hover:underline break-words">{r.name}</Link>
@@ -137,7 +142,7 @@ export default async function ProgettiLabPage({ searchParams }: { searchParams: 
                   </dl>
                 )}
                 {d.draft > 0 && <p className="text-2xs text-text-tertiary mt-2">Quotazioni in bozza per {eur2(d.draft)}: valgono zero finché non vengono vendute.</p>}
-              </li>
+              </li></LabRecordScope>
             )
           })}
         </ul>

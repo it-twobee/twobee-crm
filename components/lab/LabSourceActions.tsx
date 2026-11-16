@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { ArrowUpRight } from 'lucide-react'
 
 export default function LabSourceActions({ actions }: { actions: { label: string; href: string }[] }) {

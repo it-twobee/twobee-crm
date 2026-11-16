@@ -1,6 +1,9 @@
+import { LabRecordScope } from '@/components/lab/LabJourney'
+import LabSectionGuide from '@/components/lab/LabSectionGuide'
+import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
 import { chartValue } from '@/lib/lab-chart'
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabDeals } from '@/lib/lab-deals-load'
 import { dealProjects, dealState, installmentLines, knownAmount, type DealLine } from '@/lib/lab-deals'
@@ -28,12 +31,13 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
       <p className="text-sm text-text-secondary">Cliente, progetto, patto e documenti: che cosa manca?</p>
       <p className="text-2xs text-text-tertiary mt-1">Sola lettura · importi pattuiti IVA esclusa · in verifica</p>
     </header>
+    {data.ok && <LabSectionGuide section="accordi" />}
     {!data.ok ? <p role="alert" className="rounded-xl bg-warning-dim text-warning text-sm p-4">{data.message}</p> : <>
       <aside className="bg-surface border border-border rounded-xl p-4 text-sm text-text-secondary">
         Lo stato del lavoro non è lo stato dei pagamenti. Un accordo concluso può avere rate, fatture e incassi da completare.
         Le spunte del piano sono dichiarazioni: il riscontro completo si verifica in Fatturazione e Banca. Nessun valore si modifica qui.
       </aside>
-      <form method="get" className="flex gap-2">
+      <form method="get" className="flex gap-2"><LabReturnFields />
         <input name="q" aria-label="Cerca cliente, progetto o accordo" defaultValue={query} maxLength={200} placeholder="Cerca cliente, progetto o accordo" className="min-w-0 flex-1 rounded-xl border border-border-interactive bg-surface px-3 py-2 text-sm text-text-primary" />
         {contextMonth && <input type="hidden" name="m" value={contextMonth} />}
         {state && <input type="hidden" name="stato" value={state} />}
@@ -60,22 +64,23 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
         return <>
           {searchParams.accordo && <div className="rounded-xl border border-border bg-surface p-3 text-sm text-text-secondary">{focused ? 'Accordo aperto dal collegamento: calendario e documenti sono espansi.' : 'L’accordo richiesto non è disponibile nella fonte letta.'} <Link href={contextMonth ? `/lab/accordi?m=${contextMonth}` : '/lab/accordi'} className="text-gold-text underline">Mostra tutti gli accordi</Link></div>}
           <p className="text-2xs text-text-secondary">{rows.length} accordi per questa selezione. I contratti condivisi compaiono una volta sola.</p>
-          <LabChart key={`accordi-${query}-${state}-${focused?.id ?? ''}`} title="Valore degli accordi" note="IVA esclusa. Il canone è l’importo mensile, l’accordo a corpo è il totale pattuito: serie distinte, senza sommarle come ricavi mensili." context={`Stato ${state || 'tutti'} · osservazione ${today}`} series={[{ key: 'recurring', label: 'Canone mensile' }, { key: 'oneoff', label: 'Totale a corpo' }]} rows={rows.map(({ stream, status }) => ({ id: stream.id, label: `${clients.get(stream.client_id ?? '') ?? 'Cliente da attribuire'} · ${stream.label}`, group: `${status.label} · ${stream.billing === 'recurring' ? 'mensile' : 'a corpo'}`, href: `/lab/accordi?accordo=${encodeURIComponent(stream.id)}`, values: { recurring: stream.billing === 'recurring' ? chartValue(stream.amount) : null, oneoff: stream.billing === 'one_off' ? chartValue(stream.amount) : null } }))} />
-          <ul className="space-y-3">{rows.map(({ stream, scope, status }) => {
+          <dl id="sintesi" className="grid gap-3 sm:grid-cols-3">{[['Accordi selezionati', rows.length], ['Canoni mensili', rows.filter(r => r.stream.billing === 'recurring').length], ['Accordi a corpo', rows.filter(r => r.stream.billing === 'one_off').length]].map(([label, count]) => <div key={String(label)} className="rounded-xl border border-border bg-surface p-4"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="mt-1 text-xl font-semibold tabular-nums text-text-primary">{count}</dd></div>)}</dl>
+          <LabChart chartId="analisi" key={`accordi-${query}-${state}-${focused?.id ?? ''}`} title="Importi pattuiti per accordo" note="IVA esclusa. Confronta separatamente canoni mensili e totali a corpo: il tipo selezionato definisce il significato dell’importo. Gli accordi condivisi compaiono una sola volta." context={`Stato ${state || 'tutti'} · osservazione ${today}`} singleGroup groupLabel="Tipo di importo" initialGroup="Canoni mensili" series={[{ key: 'amount', label: 'Importo pattuito · tipo selezionato' }]} rows={rows.map(({ stream, status }) => ({ id: stream.id, label: `${clients.get(stream.client_id ?? '') ?? 'Cliente da attribuire'} · ${stream.label} · ${status.label}`, group: stream.billing === 'recurring' ? 'Canoni mensili' : stream.billing === 'one_off' ? 'A corpo · totale' : 'Frequenza da verificare', href: `/lab/accordi?accordo=${encodeURIComponent(stream.id)}`, values: { amount: ['recurring', 'one_off'].includes(stream.billing) ? chartValue(stream.amount) : null } }))} />
+          <ul id="dati-prove" className="space-y-3 scroll-mt-6">{rows.map(({ stream, scope, status }) => {
             const installments = data.installments.filter(i => i.stream_id === stream.id).sort((a, b) => a.due_month.localeCompare(b.due_month) || a.id.localeCompare(b.id))
             const costs = data.costs.filter(c => c.project_id && scope.ids.includes(c.project_id))
-            return <li key={stream.id} className="rounded-2xl border border-border bg-surface p-4 space-y-3">
+            return <LabRecordScope key={stream.id} anchor={`accordo-${stream.id}`}><li id={`accordo-${stream.id}`} className="rounded-2xl border border-border bg-surface p-4 space-y-3">
               <header><p className="text-2xs text-text-secondary">{stream.client_id && clients.has(stream.client_id)
-                ? <Link className="text-gold-text underline" href={`${economicsHref(stream.client_id)}&from=${encodeURIComponent(url(state))}`}>{clients.get(stream.client_id)}</Link> : 'Cliente da verificare'}</p>
+                ? <Link className="text-gold-text underline" href={`${economicsHref(stream.client_id)}`}>{clients.get(stream.client_id)}</Link> : 'Cliente da verificare'}</p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start mt-1"><h2 className="text-base font-semibold text-text-primary break-words">{stream.label}</h2><span className="text-sm font-semibold text-text-primary whitespace-nowrap">{money(stream.amount)}{stream.billing === 'recurring' ? '/mese' : stream.billing === 'one_off' ? ' a corpo' : ' · frequenza n/d'}</span></div>
               </header>
-              {stream.client_id && clients.has(stream.client_id) && <Link className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text hover:bg-surface-hover" href={`${economicsHref(stream.client_id)}&from=${encodeURIComponent(`/lab/accordi?accordo=${stream.id}${contextMonth ? `&m=${contextMonth}` : ''}`)}`}>Gestisci accordi e costi del cliente</Link>}
+              {stream.client_id && clients.has(stream.client_id) && <Link className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text hover:bg-surface-hover" href={economicsHref(stream.client_id)}>Gestisci accordi e costi del cliente</Link>}
               <p className="text-2xs text-text-secondary"><strong className="text-text-primary">{status.label}</strong> · {status.detail}. Stato in fonte: {stream.status}.</p>
               <p className="text-2xs text-text-secondary">Dal {stream.start_date ?? 'n/d'} al {stream.end_date ?? 'termine non registrato'} · {stream.kind} · riscontri completi n/d.</p>
               <p className="text-2xs text-text-secondary">Progetti: {scope.ids.length ? scope.ids.map((id, index) => {
                 const project = projects.get(id)
                 return <span key={id}>{index > 0 && ' · '}{project && !project.deleted_at
-                  ? <Link className="text-gold-text underline" href={`/progetti/${id}?from=${encodeURIComponent(url(state))}`}>{project.name}</Link>
+                  ? <Link className="text-gold-text underline" href={`/progetti/${id}`}>{project.name}</Link>
                   : project ? `${project.name} (archiviato)` : 'Progetto da verificare'}</span>
               }) : 'nessun progetto attribuibile dalla fonte canonica'}.</p>
               {scope.shared && <p className="text-2xs text-warning">Accordo condiviso: il valore non viene ripartito sui progetti. Margine per progetto n/d.</p>}
@@ -99,10 +104,10 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
                   {lines(data.costLines.filter(l => l.cost_item_id === c.id), 'costo')}
                 </li>)}</ul>
               </details>
-            </li>
+            </li></LabRecordScope>
           })}</ul>
           {!rows.length && <p className="text-sm text-text-secondary">Nessun accordo per questa selezione.</p>}
-          {!state && !searchParams.accordo && <section className="rounded-2xl border border-border bg-surface p-4"><h2 className="text-base text-text-primary font-semibold">Progetti senza accordo attribuibile · {without.length}</h2><p className="text-2xs text-text-secondary mt-1">Importo n/d. Nessun progetto riceve un valore zero per completare l’elenco.</p><ul className="mt-3 space-y-2">{without.map(p => <li key={p.id} className="text-sm text-text-secondary">{clients.get(p.client_id!) ?? 'Cliente n/d'} · <Link className="text-gold-text underline" href={`/progetti/${p.id}?from=${encodeURIComponent(url(state))}`}>{p.name}</Link></li>)}</ul></section>}
+          {!state && !searchParams.accordo && <section className="rounded-2xl border border-border bg-surface p-4"><h2 className="text-base text-text-primary font-semibold">Progetti senza accordo attribuibile · {without.length}</h2><p className="text-2xs text-text-secondary mt-1">Importo n/d. Nessun progetto riceve un valore zero per completare l’elenco.</p><ul className="mt-3 space-y-2">{without.map(p => <li key={p.id} className="text-sm text-text-secondary">{clients.get(p.client_id!) ?? 'Cliente n/d'} · <Link className="text-gold-text underline" href={`/progetti/${p.id}`}>{p.name}</Link></li>)}</ul></section>}
         </>
       })()}
       <p className="text-2xs text-text-tertiary">Fonte: accordi, rate, patti esterni e collegamenti documentali registrati. Lettura avviata {data.observedAt}; completezza e confronto con le sezioni in uso da verificare.</p>

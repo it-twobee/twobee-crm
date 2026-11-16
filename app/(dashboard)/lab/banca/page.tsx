@@ -1,10 +1,14 @@
+import { LabRecordScope } from '@/components/lab/LabJourney'
+import { bankDailyChart } from '@/lib/lab-chart-data'
+import LabSectionGuide from '@/components/lab/LabSectionGuide'
+import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
 import LabSourceActions from '@/components/lab/LabSourceActions'
 import LabMonthPicker from '@/components/lab/LabMonthPicker'
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabBank } from '@/lib/lab-bank-load'
-import { bankReadout, bankReference, labMonth, romeToday, type LabBankTx } from '@/lib/lab-bank'
+import { bankReadout, bankReference, labMonth, monthEnd, romeToday, type LabBankTx } from '@/lib/lab-bank'
 import { eur2 } from '@/lib/money'
 import { loadLabConnections } from '@/lib/lab-connections-load'
 import { transactionConnections } from '@/lib/lab-connections'
@@ -12,19 +16,20 @@ import LabConnectionList from '@/components/lab/LabConnectionList'
 
 export const dynamic = 'force-dynamic'
 
-export default async function LabBankPage({ searchParams }: { searchParams: { m?: string; conto?: string; movimento?: string; q?: string; riferimenti?: string } }) {
+export default async function LabBankPage({ searchParams }: { searchParams: { m?: string; conto?: string; movimento?: string; q?: string; riferimenti?: string; giorno?: string } }) {
   await requireLabAdmin()
   const today = romeToday()
   const month = labMonth(searchParams.m, today)
   const [data, connections] = await Promise.all([loadLabBank(today), loadLabConnections(today)])
   const query = (searchParams.q ?? '').trim().slice(0, 200)
+  const day = searchParams.giorno && /^\d{4}-\d{2}-\d{2}$/.test(searchParams.giorno) && searchParams.giorno.startsWith(month.slice(0, 7)) && searchParams.giorno >= month && searchParams.giorno <= monthEnd(month) ? searchParams.giorno : ''
   const filter = searchParams.riferimenti === 'senza' || searchParams.riferimenti === 'presenti' ? searchParams.riferimenti : 'tutti'
   const references = new Map(data.ok && connections ? data.txs.map(tx => [tx.id, transactionConnections(tx, connections)]) : [])
-  const href = (m: string, account?: string) => `/lab/banca?${new URLSearchParams({ m, q: query, riferimenti: filter, ...(account ? { conto: account } : {}) })}`
+  const href = (m: string, account?: string) => `/lab/banca?${new URLSearchParams({ m, q: query, riferimenti: filter, ...(account ? { conto: account } : {}), ...(day && day.startsWith(m.slice(0, 7)) ? { giorno: day } : {}) })}`
   const selected = data.ok && data.accounts.some(a => a.id === searchParams.conto) ? searchParams.conto : undefined
-  const visibleMovement = (tx: LabBankTx) => searchParams.movimento ? tx.id === searchParams.movimento :
+  const visibleMovement = (tx: LabBankTx) => (!day || tx.booked_on === day) && (searchParams.movimento ? tx.id === searchParams.movimento :
     (!query || `${tx.counterparty ?? ''} ${tx.description} ${tx.doc_ref ?? ''}`.toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it')))
-    && (!connections || filter === 'tutti' || (filter === 'presenti' ? !!references.get(tx.id)?.links.length : !references.get(tx.id)?.links.length && !references.get(tx.id)?.issues.length))
+    && (!connections || filter === 'tutti' || (filter === 'presenti' ? !!references.get(tx.id)?.links.length : !references.get(tx.id)?.links.length && !references.get(tx.id)?.issues.length)))
 
   return (
     <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
@@ -33,31 +38,36 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
         <p className="text-sm text-text-secondary">Che cosa è passato sui conti e che cosa resta da verificare?</p>
         <p className="text-2xs text-text-tertiary mt-1">Sola lettura · importi lordi · dati osservati fino al {today} · in verifica</p>
       </header>
+    {data.ok && <LabSectionGuide section="banca" />}
       <LabMonthPicker month={month} action="/lab/banca" parameters={{ q: query, riferimenti: filter, ...(selected ? { conto: selected } : {}) }} label="Mese dei movimenti" />
       {!data.ok ? <p role="alert" className="rounded-xl p-4 bg-warning-dim text-warning text-sm">{data.message}</p> : <>
-        <aside className="rounded-xl border border-border bg-surface p-4 text-sm text-text-secondary space-y-2">
+        <details className="rounded-xl border border-border bg-surface p-4 text-sm text-text-secondary space-y-2"><summary className="cursor-pointer py-1 text-gold-text">Come leggere saldi e conti</summary>
           <p>Il saldo ricostruito usa apertura registrata + movimenti di origine banca, inclusi giroconti e movimenti nascosti. Non è il saldo disponibile dell’app bancaria.</p>
           <p>La coincidenza con un saldo dichiarato controlla quella data: non prova la completezza degli estratti successivi. L’ultimo movimento non certifica la copertura.</p>
           <p>Conti principali e sottoconti sono separati. Totale consolidato: <strong className="text-text-primary">n/d</strong> finché il perimetro non è verificato.</p>
-        </aside>
-        <nav aria-label="Filtra conto" className="flex flex-wrap gap-2">
+        </details>
+        <nav id="sintesi" aria-label="Filtra conto" className="flex flex-wrap gap-2">
           <Link href={href(month)} aria-current={!selected ? 'page' : undefined} className={`px-3 py-2 rounded-xl border text-sm ${!selected ? 'border-border-strong bg-surface-active text-text-primary' : 'border-border text-text-secondary'}`}>Tutti i conti</Link>
           {data.accounts.map(a => <Link key={a.id} href={href(month, a.id)} aria-current={selected === a.id ? 'page' : undefined} className={`px-3 py-2 rounded-xl border text-sm ${selected === a.id ? 'border-border-strong bg-surface-active text-text-primary' : 'border-border text-text-secondary'}`}>{a.label}</Link>)}
         </nav>
         {searchParams.movimento && !data.txs.some(tx => tx.id === searchParams.movimento && tx.source === 'banca' && tx.booked_on.slice(0, 7) === month.slice(0, 7) && (!selected || tx.account_id === selected)) && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Il movimento richiesto non è presente tra i movimenti di banca del mese e conto selezionati. Non viene mostrato un movimento sostitutivo.</p>}
-        <form method="get" action="/lab/banca" className="rounded-2xl border border-border bg-surface p-4">
+        {searchParams.giorno && !day && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Giorno non valido per questo mese: nessun filtro giornaliero applicato.</p>}
+        <form method="get" action="/lab/banca" className="rounded-2xl border border-border bg-surface p-4"><LabReturnFields />
           <input type="hidden" name="m" value={month} />{selected && <input type="hidden" name="conto" value={selected} />}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-end">
             <label className="min-w-0 text-2xs text-text-secondary">Cerca nei movimenti<input name="q" defaultValue={query} maxLength={200} placeholder="Controparte, causale o documento" className="mt-1 block min-h-11 w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary" /></label>
+            <label className="text-2xs text-text-secondary">Giorno<input type="date" name="giorno" defaultValue={day} className="mt-1 block min-h-11 w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary" /></label>
             <label className="text-2xs text-text-secondary">Collegamenti<select name="riferimenti" defaultValue={filter} disabled={!connections} className="mt-1 block min-h-11 w-full rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary"><option value="tutti">Tutti i movimenti</option><option value="senza">Senza riferimenti nei registri</option><option value="presenti">Con riferimenti nei registri</option></select></label>
             <button type="submit" className="min-h-11 rounded-xl bg-gold px-4 text-sm font-medium text-on-gold">Filtra</button>
           </div>
           <p className="mt-3 text-2xs text-text-secondary">I filtri cambiano l’elenco, mai i saldi o i totali del mese. Un riferimento non certifica un pagamento.</p>
           {!connections && <p className="mt-2 text-2xs text-warning">Fonti dei collegamenti non disponibili: il filtro per riferimenti è sospeso.</p>}
+          {day && <p className="mt-2 text-2xs text-text-secondary">Elenco limitato al {day}. <Link href={`/lab/banca?${new URLSearchParams({ m: month, ...(selected ? { conto: selected } : {}), q: query, riferimenti: filter })}`} className="inline-block py-2 text-gold-text underline">Mostra tutto il mese</Link></p>}
           {searchParams.movimento && <Link className="mt-2 inline-block py-2 text-2xs text-gold-text underline" href={href(month, selected)}>Esci dal movimento selezionato</Link>}
         </form>
-        <LabChart key={`banca-${month}-${selected ?? 'tutti'}-${query}-${filter}-${searchParams.movimento ?? ''}`} title="Entrate e uscite sui conti" note="Movimenti lordi EUR di origine banca nel mese, inclusi nascosti e giroconti. Conti e sottoconti separati dal filtro Gruppo; nessun saldo consolidato. Le serie non sono un utile." context={`Mese ${month} · osservazione ${today}`} series={[{ key: 'incoming', label: 'Entrate lorde' }, { key: 'outgoing', label: 'Uscite lorde' }]} rows={data.accounts.filter(a => (!selected || a.id === selected) && a.currency === 'EUR').flatMap(account => bankReadout(account, data.txs, month, today).period.filter(visibleMovement).map(tx => ({ id: tx.id, label: `${tx.booked_on} · ${tx.counterparty || tx.description || 'Movimento'}`, date: tx.booked_on, group: account.label, href: `${href(month, account.id)}&movimento=${encodeURIComponent(tx.id)}#movimento-${encodeURIComponent(tx.id)}`, values: { incoming: tx.amount >= 0 ? tx.amount : null, outgoing: tx.amount < 0 ? Math.abs(tx.amount) : null } }))).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))} />
+
         {!data.accounts.length && <p className="text-sm text-text-secondary">Nessun conto disponibile in archivio. Saldi n/d.</p>}
+        <span id="dati-prove" className="block scroll-mt-6" />
         {data.accounts.filter(a => !selected || a.id === selected).sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id) || Number(b.is_primary) - Number(a.is_primary) || a.label.localeCompare(b.label)).map(account => {
           const read = bankReadout(account, data.txs, month, today)
           const visible = read.period.filter(visibleMovement)
@@ -86,7 +96,7 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
               <summary className="cursor-pointer text-sm text-gold-text py-2">Movimenti e riferimenti · {visible.length} di {read.period.length}</summary>
               <p className="text-2xs text-text-secondary mb-3">Un riferimento diretto non dimostra la copertura integrale. Quote, documenti e distinte saranno verificati nel passaggio successivo; residuo riconciliato n/d.</p>
               {!visible.length ? <p className="text-sm text-text-secondary">Nessun movimento per questa selezione. I totali sopra mantengono tutto il mese; la copertura degli estratti resta da verificare.</p> : <ul className="divide-y divide-border">
-                {visible.map(tx => <li key={tx.id} id={`movimento-${tx.id}`} className="py-3 space-y-1 scroll-mt-4">
+                {visible.map(tx => <LabRecordScope key={tx.id} anchor={`movimento-${tx.id}`}><li id={`movimento-${tx.id}`} className="py-3 space-y-1 scroll-mt-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:gap-3"><p className="text-sm font-medium text-text-primary break-words">{tx.counterparty || tx.description || 'Controparte n/d'}</p><span className="text-sm text-text-primary whitespace-nowrap tabular-nums">{tx.amount > 0 ? '+' : ''}{money(tx.amount)}</span></div>
                   <p className="text-2xs text-text-tertiary">{tx.booked_on} · banca · {bankReference(tx)}</p>
                   <details open={searchParams.movimento === tx.id} className="rounded-xl bg-surface-hover p-3">
@@ -96,11 +106,12 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
                   </details>
                   {tx.counterparty && <p className="text-2xs text-text-secondary break-words">{tx.description}</p>}
                   {tx.hidden_reason && <p className="text-2xs text-warning">Nascosto dalla lettura operativa: {tx.hidden_reason}. Incluso nella cassa.</p>}
-                </li>)}
+                </li></LabRecordScope>)}
               </ul>}
             </details>
           </section>
         })}
+        <LabChart chartId="analisi" key={`banca-${month}-${selected ?? 'tutti'}-${query}-${filter}-${day}-${searchParams.movimento ?? ''}`} title="Entrate e uscite per giorno" note="Un conto EUR alla volta; giorni con movimenti registrati, inclusi nascosti e giroconti. Non certifica la continuità degli estratti o il saldo disponibile. Apri un giorno per verificarne i movimenti." context={`Mese ${month} · osservazione ${today}`} initialType="line" singleGroup series={[{ key: 'incoming', label: 'Entrate lorde' }, { key: 'outgoing', label: 'Uscite lorde' }]} rows={bankDailyChart(data.accounts.filter(a => !selected || a.id === selected), data.txs, month, today, visibleMovement)} />
         <LabSourceActions actions={[{ label: 'Carica documenti', href: '/economics/carica' }, { label: 'Gestisci i movimenti', href: `/economics/banca?m=${month}` }]} />
         <p className="text-2xs text-text-tertiary">Lettura avviata: {data.observedAt}. I dati possono aggiornarsi durante la lettura. Confronto e completezza delle fonti ancora da verificare.</p>
       </>}

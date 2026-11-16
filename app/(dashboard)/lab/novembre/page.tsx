@@ -1,5 +1,5 @@
 import { monthKey, monthLabel, shiftMonth } from '@/lib/pl'
-import Link from 'next/link'
+import Link from '@/components/lab/LabLink'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Suspense } from 'react'
 import { BancaMese } from './BancaMese'
