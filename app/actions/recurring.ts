@@ -5,22 +5,47 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import type { RecurrenceFrequency, Priority, Visibility } from '@/lib/types/database'
 import { runRecurrences } from '@/lib/recurrence-run'
+import { puoToccareSerie } from '@/lib/serie-ad-hoc'
 import { generaSubito } from '@/lib/recurrence-kick'
 import { ruleLabel } from '@/lib/recurrence'
 import { notificaAssegnazione } from '@/lib/notify'
 
-async function requireStaff(): Promise<string> {
+async function staff(): Promise<{ uid: string; admin: boolean }> {
   const sb = await createClient()
   const { data: { user } } = await sb.auth.getUser()
   if (!user) throw new Error('Non autenticato')
   const { data: p } = await sb.from('profiles').select('role').eq('id', user.id).single()
   if (p?.role !== 'admin' && p?.role !== 'team') throw new Error('Permesso negato')
-  return user.id
+  return { uid: user.id, admin: p.role === 'admin' }
+}
+const requireStaff = async () => (await staff()).uid
+
+/**
+ * §501 — **una serie ad hoc è di chi la riceve e di chi l'ha scritta** (§322):
+ * la cambiano loro due e l'admin. Quelle di progetto restano allo staff come
+ * prima, perché lì governa il progetto. Il progetto si legge dalla riga, non
+ * dal chiamante: è la riga a dire che tipo di serie è.
+ */
+async function serieDaToccare(id: string, { uid, admin }: { uid: string; admin: boolean }): Promise<{ project_id: string | null }> {
+  const { data } = await createAdminClient().from('recurring_task_templates')
+    .select('project_id, owner_id, created_by').eq('id', id).maybeSingle()
+  if (!data) throw new Error('Serie non trovata')
+  const r = data as { project_id: string | null; owner_id: string | null; created_by: string | null }
+  if (!puoToccareSerie(r, uid, admin)) {
+    throw new Error('Permesso negato: questa serie è di chi la riceve e di chi l\'ha scritta')
+  }
+  return r
 }
 
-const rev = (projectId: string) => {
-  revalidatePath(`/progetti/${projectId}`)
-  revalidatePath(`/workspace/progetti/${projectId}`)
+const rev = (projectId: string | null) => {
+  if (projectId) {
+    revalidatePath(`/progetti/${projectId}`)
+    revalidatePath(`/workspace/progetti/${projectId}`)
+  } else {
+    // §501 — una serie ad hoc si legge nella sezione Task
+    revalidatePath('/ad-hoc')
+    revalidatePath('/workspace/ad-hoc')
+  }
   /* §337 — e i posti dove l'occorrenza deve **comparire**: chi la riceve guarda
      lì, non la pagina del progetto. Rigenerare una ricorrente senza rivalidare
      «le mie attività» la fa apparire al prossimo caricamento casuale, cioè
@@ -39,9 +64,10 @@ const rev = (projectId: string) => {
 
 export async function createRecurring(input: {
   client_id: string | null
-  project_id: string
-  workstream_id: string
-  milestone_id: string
+  /** §501 — tutti e tre, o nessuno: senza, la serie è ad hoc */
+  project_id: string | null
+  workstream_id: string | null
+  milestone_id: string | null
   title: string
   /** §353 — i «Dettagli»: il motore li copia su ogni occorrenza */
   description?: string | null
@@ -57,11 +83,22 @@ export async function createRecurring(input: {
   visibility?: Visibility
 }): Promise<string> {
   const uid = await requireStaff()
+  /* §501 — le due forme che il motore genera (`lib/recurrence-run.ts`): una
+     regola a metà verrebbe salvata e non produrrebbe mai niente, cioè «l'ho
+     messa» senza che arrivi nulla. */
+  const dove = [input.project_id, input.workstream_id, input.milestone_id]
+  const adHoc = dove.every(v => !v)
+  if (!adHoc && !dove.every(Boolean)) throw new Error('Una ricorrente di progetto vuole progetto, workstream e milestone')
+  if (!input.title.trim()) throw new Error('La ricorrente ha bisogno di un titolo')
+  /* §346 — senza responsabile la serie resta ferma. Su una di progetto la
+     ritrova il pannello della corsia; una ad hoc senza responsabile non sta
+     nelle attività di nessuno, e non la vedrebbe nessuno. */
+  if (adHoc && !input.owner_id) throw new Error('Una serie ad hoc ha bisogno di chi la riceve')
   const { data, error } = await createAdminClient().from('recurring_task_templates').insert({
     client_id: input.client_id,
-    project_id: input.project_id,
-    workstream_id: input.workstream_id,
-    milestone_id: input.milestone_id,
+    project_id: adHoc ? null : input.project_id,
+    workstream_id: adHoc ? null : input.workstream_id,
+    milestone_id: adHoc ? null : input.milestone_id,
     title: input.title.trim(),
     description: input.description?.trim() || null,
     frequency: input.frequency,
@@ -97,7 +134,7 @@ export async function createRecurring(input: {
   return id
 }
 
-export async function updateRecurring(id: string, projectId: string, updates: {
+export async function updateRecurring(id: string, updates: {
   title?: string
   frequency?: RecurrenceFrequency
   interval?: number
@@ -113,7 +150,7 @@ export async function updateRecurring(id: string, projectId: string, updates: {
   visibility?: Visibility
   active?: boolean
 }) {
-  await requireStaff()
+  const serie = await serieDaToccare(id, await staff())
   const patch = { ...updates }
   if ('weekdays' in patch) patch.weekdays = patch.weekdays && patch.weekdays.length ? patch.weekdays : null
   const { error } = await createAdminClient().from('recurring_task_templates').update(patch).eq('id', id)
@@ -122,15 +159,15 @@ export async function updateRecurring(id: string, projectId: string, updates: {
      l'effetto: le occorrenze già nate non si toccano (una task assegnata è
      lavoro di qualcuno), quelle che mancano nascono adesso. */
   await generaSubito({ taskTemplateId: id })
-  rev(projectId)
+  rev(serie.project_id)
 }
 
-export async function deleteRecurring(id: string, projectId: string) {
-  await requireStaff()
+export async function deleteRecurring(id: string) {
+  const serie = await serieDaToccare(id, await staff())
   // le occorrenze già generate restano (recurring_template_id -> SET NULL da schema)
   const { error } = await createAdminClient().from('recurring_task_templates').delete().eq('id', id)
   if (error) throw new Error(error.message)
-  rev(projectId)
+  rev(serie.project_id)
 }
 
 // ── §337 · milestone ricorrenti ──────────────────────────────────────────────

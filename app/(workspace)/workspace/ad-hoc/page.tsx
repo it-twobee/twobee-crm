@@ -3,6 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
+import { caricaSerieAdHoc } from '@/lib/serie-ad-hoc'
 import type { MilestoneInput } from '@/lib/task-board'
 
 export const revalidate = 0
@@ -12,6 +13,9 @@ export default async function WorkspaceAdHocPage() {
   if (!profile) redirect('/login')
   if (profile.role !== 'team' && profile.role !== 'admin') redirect('/workspace')
   const supabase = await createClient()
+  /* §501 — tutte le serie ad hoc che la RLS lascia leggere, come le task; si
+     toccano solo le proprie (`puoToccareSerie`) */
+  const serieP = caricaSerieAdHoc(supabase, { io: profile.id, admin: profile.role === 'admin', soloMie: false })
 
   // clients_workspace = VIEW senza dati economici; le task le filtra la RLS
   const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: assegnazioni }, { data: milestones }] = await Promise.all([
@@ -44,8 +48,11 @@ export default async function WorkspaceAdHocPage() {
   ;((assegnazioni ?? []) as { task_id: string; assigned_by: string | null }[])
     .forEach(a => { assignedBy[a.task_id] = a.assigned_by })
 
+  const serie = await serieP
+
   return (
     <TaskList
+      serie={serie}
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}

@@ -116,8 +116,10 @@ export function TaskComposer({
   /* §469 — «Si ripete»: la task diventa una regola (`recurring_task_templates`) e il
      motore delle ricorrenze (§337) mette le occorrenze in «le mie attività».
      La data che si scrive qui diventa la **fine del ciclo**, non la scadenza:
-     ogni occorrenza ha la sua. Solo sui progetti, perché il motore genera
-     dentro una milestone; e non sulle subtask, che vivono della loro madre. */
+     ogni occorrenza ha la sua. Non sulle subtask, che vivono della loro madre,
+     e non sulle task al cliente: le fa il cliente, e una serie di lavoro suo
+     non la governa nessuno di noi. §501 — sulle ad hoc sì, col cliente o
+     senza: la regola senza progetto genera task ad hoc. */
   const oggi = new Date().toISOString().slice(0, 10)
   const [repeat, setRepeat] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none')
   const [repeatFrom, setRepeatFrom] = useState(oggi)
@@ -232,7 +234,7 @@ export function TaskComposer({
     : kind === 'project' ? (!!projectId && !!wsId && !!msId)
     : kind === 'cliente' ? (!!clientId && !noClient)
     : !!clientId
-  const canRepeat = kind === 'project' && !fixed?.parentTaskId
+  const canRepeat = (kind === 'project' || kind === 'ad_hoc') && !fixed?.parentTaskId
   const repeating = canRepeat && repeat !== 'none'
   const rule: RecurrenceRule | null = repeating ? {
     frequency: repeat as RecurrenceRule['frequency'],
@@ -307,11 +309,12 @@ export function TaskComposer({
     try {
       let id: string
       if (rule) {
+        const inProgetto = kind === 'project'
         id = await createRecurring({
           client_id: effectiveClientId,
-          project_id: fixed?.projectId ?? projectId,
-          workstream_id: fixed?.workstreamId ?? wsId,
-          milestone_id: fixed?.milestoneId ?? msId,
+          project_id: inProgetto ? (fixed?.projectId ?? projectId) : null,
+          workstream_id: inProgetto ? (fixed?.workstreamId ?? wsId) : null,
+          milestone_id: inProgetto ? (fixed?.milestoneId ?? msId) : null,
           title: title.trim(), description: description.trim() || null,
           frequency: rule.frequency, weekdays: rule.weekdays ?? null,
           start_date: rule.start_date, end_date: rule.end_date ?? null,

@@ -3,6 +3,7 @@ import { getSessionUser, getSessionProfile } from '@/lib/auth'
 import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
+import { caricaSerieAdHoc } from '@/lib/serie-ad-hoc'
 import type { MilestoneInput } from '@/lib/task-board'
 
 export const revalidate = 0
@@ -13,6 +14,8 @@ export default async function AdHocPage() {
   const supabase = await createClient()
   const profile = await getSessionProfile()
   if (profile?.role !== 'admin') redirect('/dashboard')
+  // §501 — tutte le serie ad hoc: la sezione Task contiene tutto il lavoro (§340)
+  const serieP = caricaSerieAdHoc(supabase, { io: user.id, admin: true, soloMie: false })
 
   const [{ data: tasks }, { data: clients }, { data: projects }, { data: profiles }, { data: workstreams }, { data: assignments }, { data: assegnazioni }, { data: milestones }] = await Promise.all([
     /* §340 — **tutte**, non le sole ad hoc. La sezione rispondeva a metà della
@@ -53,8 +56,11 @@ export default async function AdHocPage() {
   ;((assegnazioni ?? []) as { task_id: string; assigned_by: string | null }[])
     .forEach(a => { assignedBy[a.task_id] = a.assigned_by })
 
+  const serie = await serieP
+
   return (
     <TaskList
+      serie={serie}
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}
       projects={(projects ?? []) as { id: string; name: string; client_id: string | null }[]}

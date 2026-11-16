@@ -3,6 +3,7 @@ import { getSessionProfile } from '@/lib/auth'
 import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
+import { caricaSerieAdHoc } from '@/lib/serie-ad-hoc'
 import type { MilestoneInput } from '@/lib/task-board'
 import { giornoAzienda, valida } from '@/lib/person-copy'
 import { rigaAttivitaDiOggi, type IngressoAttivita } from '@/lib/attivita-copy'
@@ -21,6 +22,8 @@ export default async function MieAttivitaPage() {
   if (profile.role !== 'team' && profile.role !== 'admin') redirect('/workspace')
   const supabase = await createClient()
   const userId = profile.id
+  // §501 — le serie ad hoc che ricevo o che ho scritto: partono insieme al resto
+  const serieP = caricaSerieAdHoc(supabase, { io: userId, admin: profile.role === 'admin', soloMie: true })
 
   /* §488 — **tre ondate, non sei.** Le letture stavano in fila nell'ordine in
      cui erano state scritte, e quasi nessuna aspettava davvero la precedente:
@@ -132,11 +135,14 @@ export default async function MieAttivitaPage() {
     { valida },
   )
 
+  const serie = await serieP
+
   return (
     <TaskList
       titolo="Le mie attività"
       segnalazione={segnalazione}
       personale
+      serie={serie}
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map((c: { id: string; company_name: string; display_name: string | null }) =>
         ({ id: c.id, name: c.display_name || c.company_name }))}

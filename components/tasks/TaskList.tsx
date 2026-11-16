@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import { Avatar, SearchInput, Segmented, Empty } from '@/components/shared/formkit'
 import { CompletedTasks } from '@/components/tasks/CompletedTasks'
+import { SerieAdHoc } from '@/components/tasks/SerieAdHoc'
+import type { SerieAdHocRow } from '@/lib/serie-ad-hoc'
 import {
   setAdHocTaskStatus, deleteAdHocTask, updateAdHocTask,
 } from '@/app/actions/ad-hoc-tasks'
@@ -80,7 +82,7 @@ type ProjectOpt = { id: string; name: string; client_id?: string | null }
 export function TaskList({
   rows, clients, clientiPerCrea, projects = [], workstreams = [], milestones = [], milestoneTasks, assignedBy = {}, assegnatari = {}, io,
   profiles, canManage, canCreateClient = false, clientBase = '/clienti', projectBase = '/progetti',
-  personale = false, titolo, segnalazione,
+  personale = false, titolo, segnalazione, serie = [],
 }: {
   rows: TaskRow[]
   /** l'anagrafica che compare **nel filtro**: solo chi ha righe in elenco (§341) */
@@ -129,6 +131,8 @@ export function TaskList({
   titolo?: string
   /** §363 — la riga che segnala una cosa sola, quando c'è. Il più delle volte non c'è */
   segnalazione?: string | null
+  /** §501 — le serie ad hoc: non hanno una corsia, quindi si governano da qui */
+  serie?: SerieAdHocRow[]
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -595,6 +599,9 @@ export function TaskList({
       {/* §283 — il raccoglitore sta **in fondo e fuori dai rami**: dentro quello
           della lista piena spariva proprio quando l'elenco si svuota, cioè nel
           momento in cui uno cerca la task che ha appena spuntato. */}
+      <SerieAdHoc serie={serie} profiles={profiles} pending={pending} act={act}
+        clientName={id => (clientiPerCrea ?? clients).find(c => c.id === id)?.name ?? 'Cliente'} />
+
       {rows.length > 0 && (
         <CompletedTasks items={done} pending={pending}
           onReopen={id => act(() => setAdHocTaskStatus(

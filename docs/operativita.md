@@ -735,8 +735,8 @@ la stessa cosa: «ogni quanto si ripete, e fino a quando».
 
 - **Il composer delle task di progetto (`TaskComposer`) chiede «Si ripete»**:
   no · ogni giorno · ogni settimana (coi giorni) · ogni mese. Non sulle subtask,
-  che vivono della madre, e non sulle ad hoc: il motore genera dentro una
-  milestone, e le ad hoc non ne hanno.
+  che vivono della madre. Sulle ad hoc all'inizio no, perché il motore generava
+  solo dentro una milestone: adesso sì (§501, sotto).
 - **La data diventa «Fino al»**: su una serie la scadenza è di ogni occorrenza,
   e quella scritta nel modulo è la fine del ciclo (`end_date`). Vuota = senza
   fine. Accanto, «Dal», e l'anteprima delle prossime tre date (§338).
@@ -751,6 +751,50 @@ la stessa cosa: «ogni quanto si ripete, e fino a quando».
 
 Resta la finestra del motore: una giornaliera mette **sette** righe davanti,
 non una alla volta. È la scelta di §346 e non si cambia da qui.
+
+## «Si ripete» anche sulle ad hoc (§501, `lib/serie-ad-hoc.ts`)
+
+Feedback del 16 novembre 2026: «vado su Nuova task, è una ad hoc senza
+cliente, e non posso farla ripetere». Il motivo non era il cliente: il motore
+generava solo dentro una milestone (`lib/recurrence-run.ts` scartava le regole
+senza progetto), quindi non si ripeteva **nessuna** ad hoc, nemmeno quelle con
+un cliente.
+
+- **Una regola senza progetto è una serie ad hoc** (`serieAdHoc`). Le forme
+  sono due e nessuna via di mezzo: progetto, corsia e tappa tutti presenti, o
+  nessuno dei tre — è quello che accetta `tasks_hierarchy_chk`. Una regola a
+  metà (la tappa eliminata, `milestone_id` a NULL da schema: 17 in produzione al
+  16 novembre) resta fuori dal motore come prima, perché dentro farebbe fallire
+  l'insert di tutto il giro. Le occorrenze nascono `task_type = 'ad_hoc'`, col
+  cliente della regola o senza. Nessuna migration: le colonne erano già
+  nullable (147, 155), e prima di questa modifica in produzione non c'era
+  nessuna regola senza progetto, quindi nessuna serie dormiente si è accesa.
+- **`createRecurring` è la porta di tutte e due** e controlla la forma: una
+  regola a metà si salverebbe e non produrrebbe mai niente. Su una serie ad hoc
+  **chi la riceve è obbligatorio anche nell'azione**: su una di progetto la
+  ritrova il pannello della corsia, una ad hoc senza responsabile non sta nelle
+  attività di nessuno.
+- **Nel composer**: «Si ripete» c'è su «In un progetto» e su «Ad hoc (nostra)»,
+  col cliente o senza. Non su «Al cliente»: le fa il cliente, e una serie di
+  lavoro suo non la governa nessuno di noi.
+- **Dove si governa: «Si ripetono»**, in fondo alla sezione Task e a «Le mie
+  attività», chiusa e contata come le completate (§283), con la stessa riga e lo
+  stesso modulo del pannello di progetto (`components/projects/RecurringEditor.tsx`,
+  spostati fuori da `WorkstreamPageClient` per non averne due copie). Nelle
+  liste personali ci sono le serie che ricevo o che ho scritto; nella sezione
+  Task tutte quelle che la RLS lascia leggere. Senza cliente la riga lo dice
+  («Nessun cliente») e il modulo non offre la visibilità al cliente.
+- **Chi la tocca** (`puoToccareSerie`): chi la riceve, chi l'ha scritta,
+  l'admin — la propria roba (§322). Le pagine lo usano per non mostrare comandi
+  che rimbalzerebbero, `updateRecurring`/`deleteRecurring` per rifiutare. Le
+  serie di progetto restano a tutto lo staff come prima. Le due azioni non
+  prendono più il progetto dal chiamante: lo leggono dalla riga.
+- **Limite noto**: la policy `rtt_team_external_read` (148) fa leggere alle
+  risorse esterne (freelance, partner) solo le regole dei loro progetti, quindi
+  una serie ad hoc non la vedrebbero nemmeno se è loro — le occorrenze sì,
+  passano da `task_assignees`. Al 16 novembre non c'è nessuna risorsa esterna
+  attiva; quando ce ne sarà una, la policy va allargata a `owner_id` e
+  `created_by` uguali a `auth.uid()`.
 
 ## Più assegnatari alla nascita (§470)
 

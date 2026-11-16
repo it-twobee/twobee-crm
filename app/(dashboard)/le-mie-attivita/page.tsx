@@ -3,6 +3,7 @@ import { getViewer } from '@/lib/auth'
 import { canCreateClients } from '@/lib/permissions'
 import { redirect } from 'next/navigation'
 import { TaskList, type TaskRow } from '@/components/tasks/TaskList'
+import { caricaSerieAdHoc } from '@/lib/serie-ad-hoc'
 import type { MilestoneInput } from '@/lib/task-board'
 
 export const revalidate = 0
@@ -27,6 +28,8 @@ export default async function LeMieAttivitaPage() {
   if (!isAdmin) redirect('/workspace/attivita')
   const supabase = await createClient()
   const appRole = chiGuarda?.app_role ?? null
+  // §501 — le serie ad hoc che ricevo o che ho scritto: partono insieme al resto
+  const serieP = caricaSerieAdHoc(supabase, { io: user.id, admin: isAdmin, soloMie: true })
 
   /* §488 — tre ondate: quello che non dipende dalle task parte subito, insieme
      alla domanda «quali sono le mie». Erano cinque in fila. */
@@ -97,10 +100,13 @@ export default async function LeMieAttivitaPage() {
   ].filter(Boolean) as string[])
   const clients = (tuttiClienti ?? []).filter(c => clientIds.has(c.id))
 
+  const serie = await serieP
+
   return (
     <TaskList
       titolo="Le mie attività"
       personale
+      serie={serie}
       rows={(tasks ?? []) as TaskRow[]}
       clients={(clients ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}
       clientiPerCrea={(tuttiClienti ?? []).map(c => ({ id: c.id, name: c.display_name || c.company_name }))}

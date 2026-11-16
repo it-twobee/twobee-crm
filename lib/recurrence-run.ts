@@ -57,6 +57,14 @@ type MilestoneTemplate = {
   approval_required: boolean; deliverable: string | null; visibility: string
 }
 
+/**
+ * §501 — una serie **ad hoc** è una regola senza progetto: le occorrenze nascono
+ * come task ad hoc, col cliente o senza. Il motore genera dentro una milestone
+ * solo quando la regola ne ha una; senza, non c'è niente dentro cui generare e
+ * la task sta da sola, come quelle scritte a mano dal composer.
+ */
+export const serieAdHoc = (t: { project_id: string | null }) => !t.project_id
+
 const ruleOf = (t: {
   frequency: RecurrenceRule['frequency']; interval: number | null
   weekdays: number[] | null; day_of_month: number | null
@@ -134,9 +142,14 @@ export async function runRecurrences(db: Db, opts: {
 
   // ── task ───────────────────────────────────────────────────────────────────
   {
+    /* §501 — **due forme, e nessuna via di mezzo.** Di progetto (progetto,
+       corsia e tappa tutti presenti) o ad hoc (nessuno dei tre): è quello che
+       accetta `tasks_hierarchy_chk`. Una regola a metà — la tappa eliminata,
+       `milestone_id` a NULL da schema — resta fuori come prima: dentro, farebbe
+       fallire l'insert dell'intero giro. */
     let q = db.from('recurring_task_templates').select('*').eq('active', true)
-      .not('project_id', 'is', null).not('workstream_id', 'is', null)
-      .not('milestone_id', 'is', null)
+      .or('and(project_id.is.null,workstream_id.is.null,milestone_id.is.null),'
+        + 'and(project_id.not.is.null,workstream_id.not.is.null,milestone_id.not.is.null)')
     if (opts.taskTemplateId) q = q.eq('id', opts.taskTemplateId)
     if (opts.projectId) q = q.eq('project_id', opts.projectId)
     const { data } = await q
@@ -160,7 +173,7 @@ export async function runRecurrences(db: Db, opts: {
         .select('recurring_template_id, generated_for_date').in('recurring_template_id', ids)
       const missing = missingFor(templates, (have ?? []) as never, today)
       const rows = missing.map(({ template: t, date }) => ({
-        client_id: t.client_id, task_type: 'project',
+        client_id: t.client_id, task_type: serieAdHoc(t) ? 'ad_hoc' : 'project',
         project_id: t.project_id, workstream_id: t.workstream_id, milestone_id: t.milestone_id,
         title: t.title, description: t.description, status: 'da_fare', priority: t.priority,
         assignee_id: t.owner_id, due_date: date, estimated_hours: t.estimated_hours,

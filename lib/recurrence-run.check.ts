@@ -1,5 +1,6 @@
 /* Verifica di cosa manca da generare (§337). Esegui: npx tsx lib/recurrence-run.check.ts */
 import { missingFor, runRecurrences } from '@/lib/recurrence-run'
+import { puoToccareSerie } from '@/lib/serie-ad-hoc'
 
 let fail = 0
 const is = (label: string, got: unknown, want: unknown) => {
@@ -73,7 +74,7 @@ async function motore() {
     const db = {
       from(tabella: string) {
         const chain: Record<string, unknown> = {}
-        for (const m of ['select', 'eq', 'not', 'in', 'update']) chain[m] = () => chain
+        for (const m of ['select', 'eq', 'not', 'in', 'is', 'or', 'update']) chain[m] = () => chain
         chain.insert = (rows: Riga[]) => {
           store[tabella].push(...rows.map(r => ({ id: `x${++seq}`, ...r })))
           return Promise.resolve({ error: null })
@@ -113,6 +114,33 @@ async function motore() {
   is('in mezzo a una ferma, l\'altra lavora',
     [r3.tasks.created, r3.tasks.fermi, Array.from(new Set(misto.store.tasks.map(t => t.title)))],
     [4, 1, ['Check Ads']])
+
+  console.log('\n— Una serie ad hoc genera task ad hoc —')
+  /* §501 — senza progetto la regola è ad hoc: le occorrenze nascono fuori da
+     ogni milestone, ed è quello che `tasks_hierarchy_chk` chiede a una task ad
+     hoc — progetto, corsia e tappa tutti nulli. Una riga `project` senza
+     progetto il database la rifiuterebbe, e con lei tutto il giro. */
+  const adHoc = finto([regola({ client_id: null, project_id: null, workstream_id: null, milestone_id: null })])
+  const r4 = await runRecurrences(adHoc.db, { today: '2026-09-15' })
+  is('genera come le altre', [r4.tasks.templates, r4.tasks.created], [1, 4])
+  is('e sono ad hoc, fuori da ogni progetto',
+    Array.from(new Set(adHoc.store.tasks.map(t => [t.task_type, t.project_id, t.workstream_id, t.milestone_id].join('|')))),
+    ['ad_hoc|||'])
+  is('anche senza cliente', Array.from(new Set(adHoc.store.tasks.map(t => t.client_id))), [null])
+  is('e il ponte task_assignees è scritto', adHoc.store.task_assignees.length, 4)
+  is('una di progetto resta di progetto',
+    Array.from(new Set(conOwner.store.tasks.map(t => t.task_type))), ['project'])
+
+  console.log('\n— Una serie ad hoc è di chi la riceve e di chi l\'ha scritta —')
+  /* §501 — §322: la propria roba si tocca sempre, quella degli altri no. Sulle
+     serie di progetto la regola resta quella di prima: tutto lo staff. */
+  const sAdHoc = { project_id: null, owner_id: 'u1', created_by: 'u0' }
+  is('chi la riceve sì', puoToccareSerie(sAdHoc, 'u1', false), true)
+  is('chi l\'ha scritta sì', puoToccareSerie(sAdHoc, 'u0', false), true)
+  is('un collega no', puoToccareSerie(sAdHoc, 'u9', false), false)
+  is('l\'admin sì', puoToccareSerie(sAdHoc, 'u9', true), true)
+  is('una di progetto resta a tutto lo staff',
+    puoToccareSerie({ ...sAdHoc, project_id: 'p1' }, 'u9', false), true)
 }
 
 motore().then(() => {
