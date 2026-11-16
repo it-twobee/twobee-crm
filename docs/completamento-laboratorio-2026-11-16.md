@@ -1,5 +1,9 @@
 # Completamento Laboratorio prima della sostituzione
 
+## Abbinamento guidato — 16 novembre 2026
+
+Due percorsi semplici per cumulativi e pagamenti frazionati, selezione ricercabile e riepilogo quote/residui. [Esperienza e limite operativo dell’anteprima](abbinamento-banca-fatture-2026-11-16.md). Nessuna conferma persistente o sostituzione Economics.
+
 Mandato: completare le capacità mancanti mantenendo Economics operativo. La sostituzione richiede un nuovo via libera esplicito dell’utente; push su main non significa promozione. Il perimetro attuale mantiene Lab e DB in sola lettura.
 
 ## Capacità aggiunte

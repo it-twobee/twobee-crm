@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Abbinamento guidato — 16 novembre 2026
+
+Due percorsi semplici per cumulativi e pagamenti frazionati, selezione ricercabile e riepilogo quote/residui. [Esperienza e limite operativo dell’anteprima](abbinamento-banca-fatture-2026-11-16.md). Nessuna conferma persistente o sostituzione Economics.
+
 ## Completamento prima della sostituzione — 16 novembre 2026
 
 Centro verifiche trasversale, anteprima estratti e viste dei grafici salvabili. [Capacità, perimetro e matrice delle mancanze](completamento-laboratorio-2026-11-16.md). Economics resta operativo; nessuna promozione o modifica ai dati finanziari.
