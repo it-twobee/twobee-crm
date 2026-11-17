@@ -4,7 +4,7 @@ import type { LabInvoice } from '@/lib/lab-invoices'
 import type { InvoiceBankResult } from '@/lib/lab-invoice-bank'
 
 export type MatchMovement = { id: string; label: string; description?: string; date: string; account: string; accountId?: string; currency: string; signedAmount: number; available: number | null; why: string | null; href: string }
-export type MatchDocument = { id: string; label: string; date: string; currency: string; direction: number; side?: 'emessa' | 'ricevuta'; total: number | null; paid: number | null; remaining: number | null; why: string | null; href: string }
+export type MatchDocument = { id: string; label: string; date: string; currency: string; direction: number; side?: 'emessa' | 'ricevuta'; counterpartyName?: string; number?: string; total: number | null; paid: number | null; remaining: number | null; why: string | null; href: string }
 export type MatchPair = { movementId: string; documentId: string; amount: number }
 export type MatchPlan = { pairs: MatchPair[]; issues: string[]; total: number; movementRemainders: { id: string; amount: number }[]; documentRemainders: { id: string; amount: number }[] }
 const cents = (v: number) => Math.round(v * 100)
@@ -23,7 +23,7 @@ export function matchingSources(accounts: LabBankAccount[], txs: LabBankTx[], do
   const invoices: MatchDocument[] = documents.filter(d => d.issuedOn <= today).map(d => {
     const p = proof.invoices.get(d.id)
     const remaining = p && !p.issues.length && p.expected != null && p.state !== 'eccedente' ? Math.max(0, cents(p.expected) - cents(p.paidKnown ?? 0)) / 100 : null
-    return { id: d.id, label: `${d.direction === 'emessa' ? 'Emessa' : 'Ricevuta'} ${d.number} · ${d.counterpartyName}`, date: d.issuedOn, currency: d.currency, side: d.direction, direction: (d.direction === 'emessa' ? 1 : -1) * d.sign, total: p?.expected ?? null, paid: p?.paidKnown ?? null, remaining, why: remaining == null ? 'Ritenute, rettifiche o riferimenti da verificare' : remaining === 0 ? 'Importo già coperto dalle quote bancarie' : null, href: `/lab/fatturazione?documento=${encodeURIComponent(d.id)}` }
+    return { id: d.id, label: `${d.direction === 'emessa' ? 'Emessa' : 'Ricevuta'} ${d.number} · ${d.counterpartyName}`, date: d.issuedOn, currency: d.currency, side: d.direction, counterpartyName: d.counterpartyName, number: d.number, direction: (d.direction === 'emessa' ? 1 : -1) * d.sign, total: p?.expected ?? null, paid: p?.paidKnown ?? null, remaining, why: remaining == null ? 'Ritenute, rettifiche o riferimenti da verificare' : remaining === 0 ? 'Importo già coperto dalle quote bancarie' : null, href: `/lab/fatturazione?documento=${encodeURIComponent(d.id)}` }
   })
   return { movements, invoices }
 }

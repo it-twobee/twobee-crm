@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Suggerimenti intelligenti di raccordo — 17 novembre 2026
+
+Proposte motivate nel popup, indice di compatibilità, cumulativi e parziali, riuso prudente dei raccordi verificati. «Usa proposta» prepara le selezioni; conferma sempre esplicita. [Criteri e limiti](suggerimenti-raccordi-2026-11-17.md). Nessuna scrittura automatica; attivazione del registro ancora necessaria.
+
 ## Raccordi in popup e registro — 17 novembre 2026
 
 Nuovo mandato: salvare, modificare, verificare e rimuovere i raccordi con conferma esplicita. [Implementazione, controlli e attivazione database](raccordi-popup-2026-11-17.md). Supera la sola anteprima per questa capacità; Economics non viene sostituito. Schema nuovo ancora da attivare in produzione.

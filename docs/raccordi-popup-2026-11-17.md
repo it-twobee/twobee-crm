@@ -14,6 +14,8 @@ Si opera un movimento→più fatture oppure una fattura→più movimenti. L’in
 
 Registro con filtri di stato/date/tipo/ricerca, quote e fonti, modifica/ottimizzazione delle selezioni, verifica manuale con autore/data, rimozione con conferma e storico. Una modifica annulla la verifica precedente. Cancellare un raccordo disattiva i collegamenti e libera le quote; non elimina movimenti, fatture o cronologia. La verifica manuale non certifica la completezza degli estratti.
 
+Per i nuovi raccordi il popup propone anche [suggerimenti motivati](suggerimenti-raccordi-2026-11-17.md), applicabili alla selezione prima della verifica manuale.
+
 ## Persistenza e controlli
 
 Tre tabelle deny-all: `bank_invoice_reconciliations`, `bank_invoice_reconciliation_items`, `bank_invoice_reconciliation_events`. RPC `save_bank_invoice_reconciliation` invoker, eseguibile solo dal service role, con attore dalla sessione verificata e controllo super admin attivo anche nel database. La route richiede sia il gate Economics sia il gate Lab; usa `createActorClient`. Nessuna identità accettata dal corpo del browser.
