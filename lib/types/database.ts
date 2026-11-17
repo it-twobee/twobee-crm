@@ -24,7 +24,7 @@ export type HrRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
 export type ProfilePermissionKey =
   | 'can_view_full_financials' | 'can_view_macro_revenue' | 'can_view_manager_economics'
-  | 'can_view_deals' | 'can_view_team_data' | 'can_view_strategy'
+  | 'can_view_deals' | 'can_view_all_deals' | 'can_view_team_data' | 'can_view_strategy'
   | 'can_approve_hr' | 'can_configure_workspace' | 'can_manage_partners'
 export type PermissionSection = 'clienti' | 'fatturazione' | 'task' | 'chat' | 'report' | 'customer_care' | 'impostazioni' | 'mrr' | 'anagrafica_fiscale'
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { getSalesAccess, leadDi, vedeTutto } from '@/lib/sales-guard'
+import { getSalesAccess, governaLead, leadDi, vedeTutto } from '@/lib/sales-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { CAMPI_RIGA } from '@/lib/sales-table'
 import { CrmTable, type RigaCrm, type PersonaCrm } from './CrmTable'
@@ -113,7 +113,7 @@ export async function SalesPage({ base }: { base: string }) {
         io={contesto.actor}
         puoiEsportare={puoEsportare(io?.app_role, io?.email, SUPER_ADMIN_EMAILS)}
         persone={persone}
-        puoiAssegnare={vedeTutto(contesto.access)}
+        puoiAssegnare={governaLead(contesto.access)}
         puoiEliminare={contesto.access === 'admin' || contesto.access === 'manager'}
       />
     </FasiProvider>

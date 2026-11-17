@@ -1164,3 +1164,27 @@ falso positivo (`rgba(255,255,255,.10)` letto senza l'alfa).
 ### §459 — «Aggiorna dal foglio» ricarica sempre
 
 Con il giro ogni 30 minuti il lead è spesso già dentro quando si preme il tasto: «nessun nuovo» e la pagina aperta (`useState(iniziali)` in `CrmTable`) restava vecchia. Ora il tasto ricarica sempre.
+
+## «Vede tutti i lead» senza essere manager — §502
+
+`salesAccess` aveva tre livelli: admin, manager (tutta la pipeline) e `owner`
+(solo i propri lead, §430). Un junior abilitato senza lead suoi — in produzione
+131 lead, nessuno con lui come owner — apriva `/workspace/commerciale` e
+trovava l'elenco vuoto. Farlo manager voleva dire dargli anche il governo
+(owner, eliminazione, passaggio alla delivery) e i permessi su progetti e
+clienti.
+
+- **Quarto livello `tutti`**, dal permesso `can_view_all_deals`, che si somma a
+  `can_view_deals` (da solo non apre niente).
+  Vede e modifica tutta la pipeline, ma **non** assegna gli owner, non elimina,
+  non passa alla delivery.
+- **Due predicati, due domande** (`lib/sales-guard.ts`): `vedeTutto` (admin,
+  manager, `tutti`) risponde «quali righe»; `governaLead` (admin, manager)
+  risponde «chi governa». `puoiAssegnare` e l'assegnazione owner passano da
+  `governaLead`.
+- **SQL e TypeScript dicono la stessa cosa**: `sales_access` (migration 282) restituisce
+  `tutti` e `sales_can_read_deal` lo legge come il manager. Le RPC di
+  conversione (225) non sono più chiamate dal codice.
+- Si accende da `/impostazioni/commerciale`, colonna «Vede tutti i lead»
+  (`setSalesAllPermission`, stesso gate di `setSalesPermission`).
+- Gate: `npx tsx lib/sales.check.ts`.

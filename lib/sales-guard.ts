@@ -11,12 +11,14 @@ export async function getSalesAccess() {
      il layout del workspace, a ogni pagina */
   const user = await getSessionUser()
   if (!user) return null
-  const [{ data: p, error }, { data: grant }] = await Promise.all([
+  const [{ data: p, error }, { data: grants }] = await Promise.all([
     sb.from('profiles').select('app_role,is_active').eq('id', user.id).single(),
-    sb.from('profile_permissions').select('granted').eq('profile_id', user.id).eq('permission', 'can_view_deals').maybeSingle(),
+    sb.from('profile_permissions').select('permission,granted').eq('profile_id', user.id)
+      .in('permission', ['can_view_deals', 'can_view_all_deals']),
   ])
   if (error || !p) return null
-  const access = salesAccess(p.app_role, grant?.granted === true, p.is_active !== false)
+  const concesso = (nome: string) => (grants ?? []).some(g => g.permission === nome && g.granted === true)
+  const access = salesAccess(p.app_role, concesso('can_view_deals'), p.is_active !== false, concesso('can_view_all_deals'))
   return access ? { actor: user.id, access, sb } : null
 }
 
@@ -47,8 +49,11 @@ export async function leadDi(actor: string): Promise<Set<string>> {
   ])
 }
 
-/** admin e manager vedono tutto; chi è `owner` solo le sue (`salesAccess`) */
-export const vedeTutto = (access: SalesAccess) => access === 'admin' || access === 'manager'
+/** admin, manager e `tutti` (§502) vedono tutto; chi è `owner` solo le sue (`salesAccess`) */
+export const vedeTutto = (access: SalesAccess) => access === 'admin' || access === 'manager' || access === 'tutti'
+
+/** §502 — chi assegna gli owner e elimina resta admin e manager: `tutti` lavora i lead, non li governa */
+export const governaLead = (access: SalesAccess) => access === 'admin' || access === 'manager'
 
 /**
  * §430 — la porta di ogni azione su **una** trattativa.

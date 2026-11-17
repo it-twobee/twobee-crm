@@ -30,7 +30,7 @@ export default async function ConfigCommercialePage() {
     /* Le stesse persone che `setSalesPermission` accetta: attive e del workspace. */
     db.from('profiles').select('id, full_name, app_role, is_active')
       .in('app_role', WORKSPACE_ROLES).or('is_active.is.null,is_active.eq.true').order('full_name'),
-    db.from('profile_permissions').select('profile_id').eq('permission', 'can_view_deals').eq('granted', true),
+    db.from('profile_permissions').select('profile_id, permission').in('permission', ['can_view_deals', 'can_view_all_deals']).eq('granted', true),
     /* tutti, anche i ritirati: l'editor li mostra spenti invece di farli sparire */
     db.from('sales_motivi_perso').select('chiave, etichetta, ordine, attivo').order('ordine'),
   ])
@@ -58,9 +58,11 @@ export default async function ConfigCommercialePage() {
   }
   const icona = (I: typeof Ban) => <I className="w-4 h-4 text-gold-text" />
 
-  const abilitati = new Set((grant ?? []).map(g => g.profile_id as string))
+  const concessi = (grant ?? []) as { profile_id: string; permission: string }[]
+  const abilitati = new Set(concessi.filter(g => g.permission === 'can_view_deals').map(g => g.profile_id))
+  const contutti = new Set(concessi.filter(g => g.permission === 'can_view_all_deals').map(g => g.profile_id))
   const persone: PersonaAccesso[] = ((profili ?? []) as { id: string; full_name: string | null; app_role: AppRole }[])
-    .map(p => ({ id: p.id, nome: p.full_name || 'Senza nome', ruolo: p.app_role, abilitato: abilitati.has(p.id) }))
+    .map(p => ({ id: p.id, nome: p.full_name || 'Senza nome', ruolo: p.app_role, abilitato: abilitati.has(p.id), tutti: contutti.has(p.id) }))
 
   return (
     <div className="p-4 sm:p-6 space-y-10">

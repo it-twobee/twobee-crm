@@ -23,16 +23,19 @@ export const OUTCOMES = {
   pausa: 'Da riprendere', riattiva: 'Riattiva', persa: 'Non interessato', vinta: 'Vinta · cliente acquisito',
 } as const
 export type SalesOutcome = keyof typeof OUTCOMES
-export type SalesAccess = 'admin' | 'manager' | 'owner' | null
+export type SalesAccess = 'admin' | 'manager' | 'tutti' | 'owner' | null
 
-export function salesAccess(role: string | null | undefined, enabled: boolean, active = true): SalesAccess {
+/* `all` (§502, `can_view_all_deals`): vede e modifica tutta la pipeline senza
+   essere manager — non assegna gli owner, non elimina, non passa alla delivery. */
+export function salesAccess(role: string | null | undefined, enabled: boolean, active = true, all = false): SalesAccess {
   if (!active) return null
   if (isAdminRole(role)) return 'admin'
   if (!enabled || !isWorkspaceRole(role)) return null
-  return role === 'manager' ? 'manager' : 'owner'
+  if (role === 'manager') return 'manager'
+  return all ? 'tutti' : 'owner'
 }
 export function canReadDeal(access: SalesAccess, actor: string, owner: string | null) {
-  return access === 'admin' || access === 'manager' || (access === 'owner' && actor === owner)
+  return access === 'admin' || access === 'manager' || access === 'tutti' || (access === 'owner' && actor === owner)
 }
 
 export type SalesDeal = {

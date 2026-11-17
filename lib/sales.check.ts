@@ -38,6 +38,13 @@ test('Solo il manager abilitato coordina le trattative degli altri', () => {
   assert.equal(canReadDeal('manager', owner, other), true)
   assert.equal(canReadDeal(null, owner, owner), false)
 })
+test('§502 — «tutti i lead» apre la pipeline senza il governo dei manager', () => {
+  assert.equal(salesAccess('junior', true, true, true), 'tutti')
+  assert.equal(salesAccess('junior', false, true, true), null)
+  assert.equal(salesAccess('junior', true, false, true), null)
+  assert.equal(salesAccess('junior', true, true, false), 'owner')
+  assert.equal(canReadDeal('tutti', owner, other), true)
+})
 test('Disattivare il profilo revoca anche gli admin', () => assert.equal(salesAccess('admin', true, false), null))
 test('La giornata segue Roma anche dopo la mezzanotte locale', () => assert.equal(salesToday(new Date('2026-09-14T23:10:00Z')), '2026-09-15'))
 test('Date reali, anni bisestili e passaggio di mese', () => {

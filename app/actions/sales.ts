@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createActorClient, createAdminClient } from '@/lib/supabase/admin'
 import { giroFoglio } from '@/lib/sales-foglio-google'
 import { statoSchede } from '@/lib/sales-sync'
-import { requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } from '@/lib/sales-guard'
+import { governaLead, requireDealAccess, requireSalesAccess, requireSalesConfig, vedeTutto } from '@/lib/sales-guard'
 import { OUTCOMES, canReadDeal, salesAccess, uuid, validDate, validateDeal, type DealInput, type Delivery, type SalesData, type SalesDeal, type SalesOutcome, type SalesActivity } from '@/lib/sales'
 import { isWorkspaceRole } from '@/lib/permissions'
 import { validaCella, CAMPI_SCRIVIBILI } from '@/lib/sales-table'
@@ -41,6 +41,29 @@ export async function setSalesPermission(profileId: string, enabled: boolean) {
   if (error || !target || !isWorkspaceRole(target.app_role) || target.is_active === false) throw new Error('Scegli una persona attiva del workspace')
   const result = await db.from('profile_permissions').upsert({
     profile_id: profileId, permission: 'can_view_deals', granted: enabled, granted_by: actor,
+  }, { onConflict: 'profile_id,permission' })
+  if (result.error) dbError(result.error)
+  refreshSales()
+  revalidatePath('/impostazioni/commerciale')
+  revalidatePath('/workspace', 'layout')
+}
+
+/* §502 — «vede tutta la pipeline» senza essere manager. Stesso gate di
+   `setSalesPermission` (una pagina, un pubblico) e vale solo per chi l'area la
+   lavora già: un permesso senza l'altro non apre niente (`salesAccess`). */
+export async function setSalesAllPermission(profileId: string, enabled: boolean) {
+  const actor = await requireSalesConfig()
+  uuid(profileId)
+  if (typeof enabled !== 'boolean') throw new Error('Permesso non valido')
+  const db = createActorClient(actor)
+  const [{ data: target, error }, { data: base }] = await Promise.all([
+    db.from('profiles').select('app_role,is_active').eq('id', profileId).single(),
+    db.from('profile_permissions').select('granted').eq('profile_id', profileId).eq('permission', 'can_view_deals').maybeSingle(),
+  ])
+  if (error || !target || !isWorkspaceRole(target.app_role) || target.is_active === false) throw new Error('Scegli una persona attiva del workspace')
+  if (enabled && base?.granted !== true) throw new Error('Abilita prima l’area commerciale')
+  const result = await db.from('profile_permissions').upsert({
+    profile_id: profileId, permission: 'can_view_all_deals', granted: enabled, granted_by: actor,
   }, { onConflict: 'profile_id,permission' })
   if (result.error) dbError(result.error)
   refreshSales()
@@ -215,7 +238,7 @@ export async function salvaBatchDeal(modifiche: ModificaRiga[]): Promise<EsitoRi
         Object.assign(esito.salvati, aggiorna)
       }
       if (scrivibili.includes('owners')) {
-        if (!vedeTutto(access)) esito.errori.owners = 'Gli Account Owner li assegnano admin e manager'
+        if (!governaLead(access)) esito.errori.owners = 'Gli Account Owner li assegnano admin e manager'
         else {
           try {
             const { owner } = await impostaOwnerDeal(m.id, m.campi.owners as string[])
@@ -267,7 +290,7 @@ export async function impostaOwnerDeal(dealId: string, profileIds: string[]) {
      toglie da una riga la perde di vista, e uno che ci aggiunge un collega gli
      passa un lavoro senza che nessuno l'abbia deciso. */
   const { actor, access } = await requireDealAccess(dealId)
-  if (!vedeTutto(access)) throw new Error('Gli Account Owner li assegnano admin e manager')
+  if (!governaLead(access)) throw new Error('Gli Account Owner li assegnano admin e manager')
   if (!Array.isArray(profileIds)) throw new Error('Elenco non valido')
   const db = createActorClient(actor)
   const unici = Array.from(new Set(profileIds.filter(Boolean)))

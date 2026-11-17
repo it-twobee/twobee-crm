@@ -12,14 +12,15 @@
 import { useState, useTransition } from 'react'
 import { Loader2, Users } from 'lucide-react'
 import { toast } from 'sonner'
-import { setSalesPermission } from '@/app/actions/sales'
+import { setSalesAllPermission, setSalesPermission } from '@/app/actions/sales'
 import { ROLE_LABELS } from '@/lib/permissions'
 import type { AppRole } from '@/lib/types/database'
 
-export type PersonaAccesso = { id: string; nome: string; ruolo: AppRole; abilitato: boolean }
+export type PersonaAccesso = { id: string; nome: string; ruolo: AppRole; abilitato: boolean; tutti: boolean }
 
 export function AccessoCommercialeClient({ persone }: { persone: PersonaAccesso[] }) {
   const [stato, setStato] = useState(() => Object.fromEntries(persone.map(p => [p.id, p.abilitato])))
+  const [tutti, setTutti] = useState(() => Object.fromEntries(persone.map(p => [p.id, p.tutti])))
   const [inCorso, setInCorso] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
@@ -31,6 +32,22 @@ export function AccessoCommercialeClient({ persone }: { persone: PersonaAccesso[
         await setSalesPermission(p.id, nuovo)
         setStato(s => ({ ...s, [p.id]: nuovo }))
         toast.success(nuovo ? `${p.nome} lavora i lead` : `${p.nome} non vede più l'area commerciale`)
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Operazione non riuscita')
+      } finally {
+        setInCorso(null)
+      }
+    })
+  }
+
+  function cambiaTutti(p: PersonaAccesso) {
+    const nuovo = !tutti[p.id]
+    setInCorso(p.id)
+    startTransition(async () => {
+      try {
+        await setSalesAllPermission(p.id, nuovo)
+        setTutti(s => ({ ...s, [p.id]: nuovo }))
+        toast.success(nuovo ? `${p.nome} vede tutti i lead` : `${p.nome} vede solo i suoi lead`)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Operazione non riuscita')
       } finally {
@@ -63,13 +80,14 @@ export function AccessoCommercialeClient({ persone }: { persone: PersonaAccesso[
       ) : (
         <div className="bg-surface border border-border rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-xs">
+            <table className="w-full min-w-[640px] text-xs">
               <thead>
                 <tr className="bg-surface-hover text-2xs font-bold text-text-tertiary uppercase tracking-wider">
                   <th scope="col" className="px-3 py-2.5 text-left">Persona</th>
                   <th scope="col" className="px-3 py-2.5 text-left w-32">Ruolo</th>
                   <th scope="col" className="px-3 py-2.5 text-left w-48">Vede</th>
                   <th scope="col" className="px-3 py-2.5 text-center w-28">Abilitato</th>
+                  <th scope="col" className="px-3 py-2.5 text-center w-32">Vede tutti i lead</th>
                 </tr>
               </thead>
               <tbody>
@@ -80,7 +98,7 @@ export function AccessoCommercialeClient({ persone }: { persone: PersonaAccesso[
                       <td className="px-3 py-2 text-text-primary font-medium">{p.nome}</td>
                       <td className="px-3 py-2 text-text-secondary">{ROLE_LABELS[p.ruolo] ?? p.ruolo}</td>
                       <td className="px-3 py-2 text-text-secondary">
-                        {!on ? '—' : p.ruolo === 'manager' ? 'Tutte le trattative' : 'Solo le sue'}
+                        {!on ? '—' : p.ruolo === 'manager' || tutti[p.id] ? 'Tutte le trattative' : 'Solo le sue'}
                       </td>
                       <td className="px-3 py-2 text-center">
                         <button role="switch" aria-checked={on} aria-label={`Area commerciale per ${p.nome}`}
@@ -90,6 +108,15 @@ export function AccessoCommercialeClient({ persone }: { persone: PersonaAccesso[
                             ? <Loader2 className="w-3 h-3 mx-auto animate-spin text-text-secondary" />
                             : <span className={`inline-block h-3.5 w-3.5 rounded-full transition-transform ${on ? 'translate-x-[18px] bg-on-gold' : 'translate-x-[3px] bg-text-tertiary'}`} />}
                         </button>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {p.ruolo === 'manager' ? <span className="text-text-tertiary">già tutti</span> : (
+                          <button role="switch" aria-checked={!!tutti[p.id]} aria-label={`Tutti i lead per ${p.nome}`}
+                            onClick={() => cambiaTutti(p)} disabled={inCorso !== null || !on}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${tutti[p.id] ? 'bg-gold' : 'bg-surface-active border border-border-interactive'}`}>
+                            <span className={`inline-block h-3.5 w-3.5 rounded-full transition-transform ${tutti[p.id] ? 'translate-x-[18px] bg-on-gold' : 'translate-x-[3px] bg-text-tertiary'}`} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )
