@@ -2,6 +2,14 @@
 
 17 novembre 2026. Studio funzionale e di usabilità richiesto dall’utente. Confronto diretto dei componenti e dei percorsi nel repository; immagini del popup fornite dall’utente. Nessun browser autenticato collegato: questa non è una prova visiva dal vivo delle due pagine. Nessuna funzione elencata come proposta è dichiarata implementata da questo studio. Economics rimane operativo e la sua sostituzione richiede l’istruzione esplicita dell’utente.
 
+## Prima integrazione realizzata
+
+Su mandato successivo «ok procedi»: schede conto con saldo ricostruito/data e sottoconti riconoscibili, navigazione Movimenti/Analisi/Controlli, accessi diretti al popup e alle fonti, filtri avanzati espandibili, filtri rapidi entrate/uscite e categoria, filtri attivi rimovibili. Ricerca con invio esplicito anche per importo italiano o decimale, con segno facoltativo (senza segno cerca entrambi i versi). Lista aperta, gruppi giornalieri e righe compatte; prove e documenti nel dettaglio espandibile, aperto sul movimento richiesto. Totale netto dei risultati separato dal saldo e dai flussi dell’intero mese. Il grafico esistente rimane espandibile e conserva l’accesso tramite frammento; clic sul giorno mantiene anche verso e categoria.
+
+Questo intervento non comprende ancora ricerca istantanea, nuovi grafici saldo/controparti, intervalli personalizzati, nuovi stati del registro, CSV della lista o nuove scritture. La matrice seguente resta la roadmap completa. Prova visiva autenticata da completare; nessun browser collegato.
+
+Verifiche del primo intervento: TypeScript, 147/147 gate Europe/Rome e build passati. Gate Banca anche UTC e America/Los_Angeles. Ventuno ingressi più le tre viste con nuovi filtri verificati per redirect e parametri; 27 chunk Lab e chunk popup 200/JavaScript, API raccordi anonime 403/no-store. Prova visuale autenticata non eseguita.
+
 ## Decisione di progetto
 
 Banca deve rispondere prima a tre domande: quanto risulta sul conto, cosa è entrato/uscito, cosa devo controllare. Il movimento bancario è il fatto; fatture, righe economiche, cedolini e F24 ne spiegano la destinazione. Un riferimento non è una quota provata; una quota fattura non è automaticamente capienza libera per altri usi.

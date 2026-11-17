@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { bankMovementSearch, bankDays } from '@/lib/lab-bank-view'
 import { labContextMonth } from '@/lib/lab-context'
 import { readFileSync } from 'node:fs'
 import { bankReadout, bankReference, labMonth, monthEnd, romeToday, type LabBankAccount, type LabBankTx } from '@/lib/lab-bank'
@@ -59,4 +60,16 @@ for (const path of ['lib/lab-read.ts', 'lib/lab-bank-load.ts', 'app/(dashboard)/
   assert.doesNotMatch(source, /\.\s*(insert|update|upsert|delete|rpc)\s*\(/, `${path}: nessun comando mutante o RPC`)
   assert.doesNotMatch(source, /from ['"]@\/app\/(actions|api)\//, `${path}: nessuna dipendenza da endpoint mutanti`)
 }
+
+
+const searchable = tx('search', '2026-10-03', -1234.56, { counterparty: 'Società Alfa', description: 'Saldo fattura 68/26', doc_ref: 'FPR 68/26' })
+for (const q of ['alfa', 'FATTURA', '68/26', '1.234,56 €', '1234.56', '-1234,56']) assert.ok(bankMovementSearch(searchable, q), q)
+for (const q of ['+1234,56', '1234,55', '1.234,567', 'non presente']) assert.ok(!bankMovementSearch(searchable, q), q)
+assert.ok(bankMovementSearch(tx('whole', '2026-10-03', 1234), '1.234'))
+const originalOrder = JSON.stringify(rows)
+const grouped = bankDays([rows[1], rows[2], rows[3]])
+assert.deepEqual(grouped.map(g => [g.date, g.net]), [['2026-10-03', -15], ['2026-10-02', -20], ['2026-10-01', 50]])
+assert.equal(JSON.stringify(rows), originalOrder)
+assert.equal(bankReadout(account, rows, '2026-10-01', '2026-11-14').reconstructed, result.reconstructed, 'Search and grouping never change account balance')
+
 console.log('Tutti i controlli passano')
