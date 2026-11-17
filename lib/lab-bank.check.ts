@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { bankBalanceHistory, isRetiredBankPocket } from '@/lib/bank-presentation'
 import { bankMovementSearch, bankDays } from '@/lib/lab-bank-view'
 import { labContextMonth } from '@/lib/lab-context'
 import { readFileSync } from 'node:fs'
@@ -72,4 +73,14 @@ assert.deepEqual(grouped.map(g => [g.date, g.net]), [['2026-10-03', -15], ['2026
 assert.equal(JSON.stringify(rows), originalOrder)
 assert.equal(bankReadout(account, rows, '2026-10-01', '2026-11-14').reconstructed, result.reconstructed, 'Search and grouping never change account balance')
 
+const history = bankBalanceHistory(account, rows, '2026-10-31')!
+assert.equal(history.at(-1)!.value, result.reconstructed)
+assert.equal(history[0].value, account.opening_balance)
+assert.equal(bankBalanceHistory(account, [...rows, tx('bad', '2026-08-01', 1)], '2026-10-31'), null)
+assert.equal(bankBalanceHistory({ ...account, currency: 'USD' }, rows, '2026-10-31'), null)
+assert.equal(bankBalanceHistory(account, rows, '2026-08-31'), null)
+for (const label of ['Vivid Marco', 'Vivid Toto', 'Vivid Walter']) assert.ok(isRetiredBankPocket({ label }))
+assert.ok(!isRetiredBankPocket({ label: 'Vivid società' }))
+assert.ok(!isRetiredBankPocket({ label: 'Banco BPM' }))
+assert.equal(rows.length, 8, 'Presentation does not remove financial facts')
 console.log('Tutti i controlli passano')

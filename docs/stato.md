@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Saldo Banca come Economics — 17 novembre 2026
+
+Riquadro saldo/andamento e azioni di caricamento nel Lab; sottoconti Vivid personali rimossi dalla presentazione di entrambe le sezioni, senza cancellare dati. [Perimetro, azioni e limiti della previsione](studio-banca-economics-laboratorio-2026-11-17.md#riquadro-saldo-economics-nel-lab).
+
 ## Banca quotidiana: prima integrazione UI/UX — 17 novembre 2026
 
 Schede conto, viste Movimenti/Analisi/Controlli, lista compatta per giorno, ricerca importi, filtri rapidi e rimovibili, prove progressive e accesso diretto al popup. Totali dei risultati separati dai saldi. [Perimetro realizzato e roadmap](studio-banca-economics-laboratorio-2026-11-17.md#prima-integrazione-realizzata). Nessuna nuova scrittura o sostituzione Economics.

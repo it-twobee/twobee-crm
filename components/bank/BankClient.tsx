@@ -32,6 +32,7 @@ import { DistintaDialog } from './DistintaDialog'
 import {
   spendSplit, CHECK_FAMILIES, DEDUCTIBILITY, merchant, FAMILY_LABEL as FAMILY_LABEL_UI,
 } from '@/lib/bank-import'
+import { isRetiredBankPocket } from '@/lib/bank-presentation'
 import { cashBridge } from '@/lib/cash-bridge'
 import { EconomicsNav } from '@/components/economics/EconomicsNav'
 import {
@@ -109,8 +110,8 @@ export function BankClient({
 
   /* Il conto scelto. La liquidità totale sta sopra e non cambia: quella è
      dell'azienda, il saldo è del conto. */
-  const [accountId, setAccountId] = useState(accounts[0]?.id ?? '')
-  const account = accounts.find(a => a.id === accountId) ?? accounts[0] ?? null
+  const [accountId, setAccountId] = useState(accounts.find(a => !isRetiredBankPocket(a))?.id ?? '')
+  const account = accounts.find(a => a.id === accountId && !isRetiredBankPocket(a)) ?? accounts.find(a => !isRetiredBankPocket(a)) ?? null
   const ownTxs = useMemo(() => txs.filter(t => t.account_id === account?.id), [txs, account])
   /**
    * §381 — la stessa lista vista dai due mestieri della tabella.
@@ -293,7 +294,7 @@ export function BankClient({
           <div className="flex items-end justify-between gap-4 flex-wrap">
             <div>
               <p className="text-2xs font-semibold text-text-tertiary uppercase tracking-wider">
-                Liquidità totale · {accounts.length} conti
+                Liquidità totale · {accounts.filter(a => !isRetiredBankPocket(a)).length} conti
               </p>
               <p className="text-2xl font-bold text-text-primary tabular mt-0.5">{eur2(liq.total)}</p>
               {liq.pendingTransfers > 0 && (
@@ -308,7 +309,7 @@ export function BankClient({
                 farebbe sembrare quattro conti quello che è un conto con tre tasche */}
             <div className="space-y-1.5">
               <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
-                {accounts.filter(a => !a.parent_id).map(a => {
+                {accounts.filter(a => !a.parent_id && !isRetiredBankPocket(a)).map(a => {
                   const b = liq.perAccount.find(x => x.id === a.id)
                   return (
                     <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
@@ -324,9 +325,9 @@ export function BankClient({
                   )
                 })}
               </div>
-              {accounts.some(a => a.parent_id) && (
+              {accounts.some(a => a.parent_id && !isRetiredBankPocket(a)) && (
                 <div className="flex gap-1 flex-wrap justify-end">
-                  {accounts.filter(a => a.parent_id).map(a => {
+                  {accounts.filter(a => a.parent_id && !isRetiredBankPocket(a)).map(a => {
                     const b = liq.perAccount.find(x => x.id === a.id)
                     return (
                       <button key={a.id} onClick={() => setAccountId(a.id)} aria-pressed={a.id === account.id}
@@ -640,8 +641,8 @@ export function BankClient({
       )}
 
       {/* ══ §191 · le tasche dei soci: erogato che esce come spesa ══ */}
-      {accounts.some(a => a.parent_id === account.id) && (
-        <PocketsPanel parent={account} pockets={accounts.filter(a => a.parent_id === account.id)}
+      {accounts.some(a => a.parent_id === account.id && !isRetiredBankPocket(a)) && (
+        <PocketsPanel parent={account} pockets={accounts.filter(a => a.parent_id === account.id && !isRetiredBankPocket(a))}
           txs={txs} month={month} />
       )}
 

@@ -10,6 +10,16 @@ Questo intervento non comprende ancora ricerca istantanea, nuovi grafici saldo/c
 
 Verifiche del primo intervento: TypeScript, 147/147 gate Europe/Rome e build passati. Gate Banca anche UTC e America/Los_Angeles. Ventuno ingressi più le tre viste con nuovi filtri verificati per redirect e parametri; 27 chunk Lab e chunk popup 200/JavaScript, API raccordi anonime 403/no-store. Prova visuale autenticata non eseguita.
 
+## Riquadro saldo Economics nel Lab
+
+Richiesta successiva con screenshot: rimossi dalla presentazione Banca Economics e Lab i tre sottoconti personali Vivid (Marco, Toto, Walter). Nessuna cancellazione di conti, movimenti o storico; i motori finanziari continuano a ricevere l’archivio originale. Il filtro di presentazione è comune in `lib/bank-presentation.ts`.
+
+Il Lab apre sul conto principale, con selettore dei conti aziendali, saldo grande e storico oro dallo stesso `TrendChart` di Economics. La curva deriva dall’apertura e dai soli movimenti banca del conto fino al cutoff, inclusi giroconti e nascosti; mai dalle righe filtrate. Movimenti precedenti all’apertura e valute non EUR bloccano la curva. Esplorazione, tabella ed export tramite `LabChart`; clic su una data apre i movimenti.
+
+«Importa estratto conto», «Incolla righe» e «Movimento a mano» aprono un dialogo sul conto esplicito e riusano `importBankCsv`/`addManualTx` esistenti. File fino a 500 KB e conferma esplicita; conteggi parser preliminari, duplicati/riscritture/scarti riportati dall’importazione effettiva. Nessuna scrittura parte dal caricamento del file. Un manuale resta una dichiarazione, esclusa da saldo e grafico bancari del Lab. Disponibile, se registrato, mostrato separatamente con data.
+
+La linea futura dello screenshot non viene ricostruita inventando l’attribuzione delle scadenze societarie al singolo conto: rimane n/d con accesso al Previsionale esistente. Non viene certificata una liquidità aggregata soltanto per rendere uguali i riquadri. Nessuna migration o nuovo endpoint server; permessi delle azioni esistenti conservati. TypeScript, 147/147 gate e build passati; saldo anche UTC e America/Los_Angeles. Ventuno ingressi anonimi, 28 chunk Lab e chunk popup verificati, API raccordi anonime 403/no-store. Verifica visiva autenticata e importazione reale da browser ancora aperte; nessun dato finanziario è stato scritto durante i test.
+
 ## Decisione di progetto
 
 Banca deve rispondere prima a tre domande: quanto risulta sul conto, cosa è entrato/uscito, cosa devo controllare. Il movimento bancario è il fatto; fatture, righe economiche, cedolini e F24 ne spiegano la destinazione. Un riferimento non è una quota provata; una quota fattura non è automaticamente capienza libera per altri usi.

@@ -35,6 +35,7 @@ export async function loadLabBank(today: string): Promise<
       parent_id: nullable(a.parent_id), owner_partner_id: nullable(a.owner_partner_id),
       statement_balance: a.statement_balance == null ? null : numeric(a.statement_balance),
       statement_on: a.statement_on == null ? null : date(a.statement_on),
+      available_balance: a.available_balance == null ? null : numeric(a.available_balance), available_at: nullable(a.available_at),
     }))
     const accountIds = new Set(accounts.map(a => a.id))
     const txs: LabBankTx[] = txRows.map(t => {

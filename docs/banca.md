@@ -1,5 +1,9 @@
 # Banca (§189-190)
 
+## Saldo Banca come Economics — 17 novembre 2026
+
+Riquadro saldo/andamento e azioni di caricamento nel Lab; sottoconti Vivid personali rimossi dalla presentazione di entrambe le sezioni, senza cancellare dati. [Perimetro, azioni e limiti della previsione](studio-banca-economics-laboratorio-2026-11-17.md#riquadro-saldo-economics-nel-lab).
+
 ## Raccordi in popup e registro — 17 novembre 2026
 
 Nuovo mandato: salvare, modificare, verificare e rimuovere i raccordi con conferma esplicita. [Implementazione, controlli e attivazione database](raccordi-popup-2026-11-17.md). Supera la sola anteprima per questa capacità; Economics non viene sostituito. Schema nuovo ancora da attivare in produzione.
