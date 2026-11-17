@@ -34,13 +34,15 @@ export function bankReference(tx: LabBankTx): string {
   return 'Nessun riferimento diretto'
 }
 
-export function bankReadout(account: LabBankAccount, txs: LabBankTx[], month: string, today: string) {
+export function bankReadout(account: LabBankAccount, txs: LabBankTx[], month: string, today: string, range?: { from: string; to: string }) {
   const own = txs.filter(t => t.account_id === account.id)
-  const upTo = monthEnd(month) < today ? monthEnd(month) : today
+  const end = range?.to ?? monthEnd(month)
+  const start = range?.from ?? month
+  const upTo = end < today ? end : today
   const real = own.filter(t => t.source === 'banca' && t.booked_on <= upTo)
   const beforeOpening = real.some(t => t.booked_on < account.opening_date)
   const canReconstruct = account.opening_date <= upTo && !beforeOpening
-  const period = real.filter(t => t.booked_on >= month)
+  const period = real.filter(t => t.booked_on >= start)
     .sort((a, b) => b.booked_on.localeCompare(a.booked_on) || a.id.localeCompare(b.id))
   const flows = balance({ opening_balance: 0 }, period)
   const statementOn = account.statement_on
@@ -56,6 +58,6 @@ export function bankReadout(account: LabBankAccount, txs: LabBankTx[], month: st
     statementReconstructed, statementDifference, beforeOpening,
     hidden: period.filter(t => t.hidden_reason),
     transfers: period.filter(t => t.kind === 'giroconto'),
-    declaredCount: own.filter(t => t.source !== 'banca' && t.booked_on >= month && t.booked_on <= upTo).length,
+    declaredCount: own.filter(t => t.source !== 'banca' && t.booked_on >= start && t.booked_on <= upTo).length,
   }
 }

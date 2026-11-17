@@ -6,9 +6,9 @@ import type { ChartRow } from '@/lib/lab-chart'
 import { monthLabel } from '@/lib/pl'
 
 /** Daily flows on ONE account at a time, with the canonical balance engine. */
-export function bankDailyChart(accounts: LabBankAccount[], txs: LabBankTx[], month: string, today: string, visible: (tx: LabBankTx) => boolean, filters: Record<string, string> = {}): ChartRow[] {
+export function bankDailyChart(accounts: LabBankAccount[], txs: LabBankTx[], month: string, today: string, visible: (tx: LabBankTx) => boolean, filters: Record<string, string> = {}, range?: { from: string; to: string }): ChartRow[] {
   return accounts.filter(a => a.currency === 'EUR').flatMap(account => {
-    const period = bankReadout(account, txs, month, today).period.filter(visible)
+    const period = bankReadout(account, txs, month, today, range).period.filter(visible)
     return Array.from(new Set(period.map(t => t.booked_on))).sort().map(date => {
       const flows = balance({ opening_balance: 0 }, period.filter(t => t.booked_on === date))
       return { id: `${account.id}:${date}`, label: date, date, group: account.label, groupId: account.id,

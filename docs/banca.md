@@ -1,5 +1,9 @@
 # Banca (§189-190)
 
+## Periodi estesi e liberi in Banca Lab — 17 novembre 2026
+
+Mese, 30/90 giorni, 6 mesi, trimestre, anno, storico e dal/al. Flussi e grafici seguono il periodo; saldo cumulato alla fine osservabile. [Criteri e controlli](banca-periodi-2026-11-17.md). Nessuna scrittura o sostituzione Economics.
+
 ## Saldo Banca come Economics — 17 novembre 2026
 
 Riquadro saldo/andamento e azioni di caricamento nel Lab; sottoconti Vivid personali rimossi dalla presentazione di entrambe le sezioni, senza cancellare dati. [Perimetro, azioni e limiti della previsione](studio-banca-economics-laboratorio-2026-11-17.md#riquadro-saldo-economics-nel-lab).

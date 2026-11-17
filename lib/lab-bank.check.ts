@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { bankPeriod } from '@/lib/lab-bank-period'
+import { bankDailyChart } from '@/lib/lab-chart-data'
 import { bankBalanceHistory, isRetiredBankPocket } from '@/lib/bank-presentation'
 import { bankMovementSearch, bankDays } from '@/lib/lab-bank-view'
 import { labContextMonth } from '@/lib/lab-context'
@@ -83,4 +85,27 @@ for (const label of ['Vivid Marco', 'Vivid Toto', 'Vivid Walter']) assert.ok(isR
 assert.ok(!isRetiredBankPocket({ label: 'Vivid società' }))
 assert.ok(!isRetiredBankPocket({ label: 'Banco BPM' }))
 assert.equal(rows.length, 8, 'Presentation does not remove financial facts')
+assert.equal(bankPeriod({ periodo: '30' }, '2026-11-17').from, '2026-10-19')
+assert.equal(bankPeriod({ periodo: '90' }, '2026-11-17').from, '2026-08-20')
+assert.equal(bankPeriod({ periodo: '6mesi' }, '2026-11-17').from, '2026-06-01')
+assert.deepEqual([bankPeriod({ periodo: 'trimestre', m: '2026-11' }, '2026-11-17').from, bankPeriod({ periodo: 'trimestre', m: '2026-11' }, '2026-11-17').to], ['2026-10-01', '2026-12-31'])
+assert.equal(bankPeriod({ periodo: 'anno', m: '2025-03' }, '2026-11-17').to, '2025-12-31')
+assert.equal(bankPeriod({ periodo: 'libero', dal: '2024-02-29', al: '2024-03-01' }, '2026-11-17').issue, null)
+for (const [dal, al] of [['2026-02-29', '2026-03-01'], ['2026-03-02', '2026-03-01'], ['', '']]) assert.ok(bankPeriod({ periodo: 'libero', dal, al }, '2026-11-17').issue)
+assert.equal(bankPeriod({ periodo: 'tutto' }, '2026-11-17', '2026-04-28').from, '2026-04-28')
+const range = { from: '2026-09-30', to: '2026-10-02' }
+const ranged = bankReadout(account, rows, '2026-10-01', '2026-11-14', range)
+assert.equal(ranged.reconstructed, 120, 'Closing includes the prior opening, not only range flows')
+assert.equal(ranged.inflow, 50)
+assert.equal(ranged.outflow, 30)
+assert.equal(ranged.period.length, 3)
+const later = bankBalanceHistory(account, rows, '2026-10-04', '2026-10-02')!
+assert.equal(later[0].value, 120, 'Range starts at cumulative closing for that date')
+assert.equal(later.at(-1)!.value, 105)
+assert.equal(later.at(-1)!.date, '2026-10-04')
+assert.ok(later.every(p => p.date >= '2026-10-02'))
+const daily = bankDailyChart([account], rows, '2026-10-01', '2026-11-14', () => true, { periodo: 'libero', dal: range.from, al: range.to }, range)
+assert.equal(daily.length, 3, 'Daily chart includes both months in the selected range')
+assert.ok(daily[0].href!.includes('dal=2026-09-30'))
+assert.equal(bankReadout(account, rows, '2026-10-01', '2026-10-01', range).upTo, '2026-10-01', 'Never count future facts')
 console.log('Tutti i controlli passano')

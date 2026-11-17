@@ -1,0 +1,14 @@
+'use client'
+import Link from '@/components/lab/LabLink'
+import { shiftMonth } from '@/lib/pl'
+import { useState } from 'react'
+import { BANK_PERIODS, type BankPeriod } from '@/lib/lab-bank-period'
+import { LabReturnFields } from '@/components/lab/LabJourney'
+const field = 'mt-1 min-h-11 w-full min-w-0 rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary'
+export default function LabBankPeriodPicker({ period, month, today, parameters }: { period: BankPeriod; month: string; today: string; parameters: Record<string, string> }) {
+  const [mode, setMode] = useState(period.mode)
+  return <section aria-label="Periodo bancario" className="rounded-2xl border border-border bg-surface p-3"><form action="/lab/banca" method="get" className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4"><LabReturnFields />{Object.entries(parameters).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
+    <label className="min-w-0 text-2xs text-text-secondary">Periodo<select name="periodo" value={mode} onChange={e => setMode(e.target.value)} className={field}>{BANK_PERIODS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+    {mode === 'libero' ? <><label className="min-w-0 text-2xs text-text-secondary">Dal<input required name="dal" type="date" defaultValue={period.from} max={today} className={field} /></label><label className="min-w-0 text-2xs text-text-secondary">Al<input required name="al" type="date" defaultValue={period.to > today ? today : period.to} max={today} className={field} /></label><input type="hidden" name="m" value={month} /></> : ['mese', 'trimestre', 'anno'].includes(mode) ? <label className="min-w-0 text-2xs text-text-secondary">{mode === 'mese' ? 'Mese' : mode === 'trimestre' ? 'Mese nel trimestre' : 'Mese nell’anno'}<input required type="month" name="m" defaultValue={month.slice(0, 7)} className={field} /></label> : <input type="hidden" name="m" value={month} />}
+    <button className="min-h-11 rounded-xl bg-gold px-4 text-sm font-semibold text-on-gold">Mostra periodo</button></form>{mode === 'mese' && <nav aria-label="Scorri i mesi" className="mt-2 flex justify-between gap-2">{[[-1, '← Mese precedente'], [1, 'Mese successivo →']].map(([step, label]) => <Link key={step} href={`/lab/banca?${new URLSearchParams({ ...parameters, periodo: 'mese', m: shiftMonth(month, Number(step)) })}`} className="inline-flex min-h-11 items-center text-2xs text-gold-text underline">{label}</Link>)}</nav>}<p className="mt-2 text-2xs text-text-secondary">Periodo: {period.label}. {period.mode === '6mesi' ? 'Sei mesi di calendario, incluso il mese corrente.' : ''} I fatti successivi al {today} sono esclusi. Il saldo include lo storico precedente necessario al calcolo.</p>{period.issue && <p role="alert" className="mt-2 text-sm text-warning">{period.issue}</p>}</section>
+}
