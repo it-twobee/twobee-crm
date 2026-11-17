@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Audit raccordi fornitori — 17 novembre 2026
+
+[PDF solo archiviati, 78 proposte e verifiche documentali](raccordi-fornitori-2026-11-17.md). Originali confrontati per SHA-256; 59 Meta con riferimento esatto. Nessuna scrittura finanziaria, registrazione fatture o attivazione del registro eseguita.
+
 ## Periodi estesi e liberi in Banca Lab — 17 novembre 2026
 
 Mese, 30/90 giorni, 6 mesi, trimestre, anno, storico e dal/al. Flussi e grafici seguono il periodo; saldo cumulato alla fine osservabile. [Criteri e controlli](banca-periodi-2026-11-17.md). Nessuna scrittura o sostituzione Economics.
