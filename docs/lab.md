@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Popup raccordi: spazio agli elenchi — 17 novembre 2026
+
+Corpo unico scorrevole, finestra ampliata, righe compatte e riepilogo espandibile richiamabile dalla barra finale. [Percorso aggiornato](raccordi-popup-2026-11-17.md#spazio-di-lavoro-aggiornato). Nessuna modifica al calcolo o al salvataggio.
+
 ## Suggerimenti intelligenti di raccordo — 17 novembre 2026
 
 Proposte motivate nel popup, indice di compatibilità, cumulativi e parziali, riuso prudente dei raccordi verificati. «Usa proposta» prepara le selezioni; conferma sempre esplicita. [Criteri e limiti](suggerimenti-raccordi-2026-11-17.md). Nessuna scrittura automatica; attivazione del registro ancora necessaria.

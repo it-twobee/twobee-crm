@@ -16,6 +16,12 @@ Registro con filtri di stato/date/tipo/ricerca, quote e fonti, modifica/ottimizz
 
 Per i nuovi raccordi il popup propone anche [suggerimenti motivati](suggerimenti-raccordi-2026-11-17.md), applicabili alla selezione prima della verifica manuale.
 
+## Spazio di lavoro aggiornato
+
+Il popup usa quasi tutta la finestra (altezza 96dvh, larghezza 98vw fino a 1600px). Un solo scorrimento nel corpo comprende avviso, strumenti, filtri, elenchi e riepilogo: nessuna lista o pannello quote ha più un proprio scorrimento annidato. Restano fissi soltanto titolo/chiusura e azioni finali. Su desktop gli archivi sono affiancati; su telefono restano le tab.
+
+Righe compatte con nome, data, conto e disponibile/residuo; causale, totale e prova sono espandibili. Quote, residui e nota sono nel riepilogo espandibile. «Controlla» nella barra finale apre il riepilogo e lo porta in vista, mostrando sempre conteggi e totale valido. Il comando di ricarica è negli strumenti scorrevoli. Nessuna modifica a quote, suggerimenti o condizioni di salvataggio. TypeScript, 147 gate e build passati dopo il riassetto; verificati redirect anonimi, API protette e chunk dinamico del popup. Prova visiva autenticata ancora aperta: browser disponibili nella sessione = nessuno.
+
 ## Persistenza e controlli
 
 Tre tabelle deny-all: `bank_invoice_reconciliations`, `bank_invoice_reconciliation_items`, `bank_invoice_reconciliation_events`. RPC `save_bank_invoice_reconciliation` invoker, eseguibile solo dal service role, con attore dalla sessione verificata e controllo super admin attivo anche nel database. La route richiede sia il gate Economics sia il gate Lab; usa `createActorClient`. Nessuna identità accettata dal corpo del browser.
