@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { suggestReconciliations } from '@/lib/lab-match-suggestions'
+import { suggestReconciliations, certainReconciliationPairs } from '@/lib/lab-match-suggestions'
 import { matchingPlan, type MatchMovement, type MatchDocument } from '@/lib/lab-matching'
 const movement = (id = 'm', amount = 300, more = {}): MatchMovement => ({ id, label: 'Tailors Style', description: 'Bonifico Tailors Style', date: '2026-11-10', account: 'Banca', currency: 'EUR', signedAmount: amount, available: Math.abs(amount), why: null, href: '/lab/banca', ...more })
 const invoice = (id = 'i', amount = 300, more = {}): MatchDocument => ({ id, label: 'Emessa FPR 68/26 · Tailors Style SRL', counterpartyName: 'Tailors Style SRL', number: 'FPR 68/26', date: '2026-11-01', currency: 'EUR', direction: 1, side: 'emessa', total: amount, paid: null, remaining: amount, why: null, href: '/lab/fatturazione', ...more })
@@ -64,4 +64,18 @@ const learned = suggestReconciliations(historicalMovements, historicalInvoices, 
 assert.ok(learned.reasons.some(r => r.includes('2 fatture verificate')))
 assert.ok(learned.score > suggestReconciliations(historicalMovements, historicalInvoices).suggestions[0].score)
 for (const h of [[history[0]], [history[0], { ...history[1], status: 'cancelled' }], [history[0], { ...history[1], verified_at: null }], [history[0], { ...history[1], items: [{ tx_id: 'old2', invoice_id: 'old1' }] }]]) assert.ok(!suggestReconciliations(historicalMovements, historicalInvoices, [], [], h).suggestions[0].reasons.some(r => r.includes('fatture verificate')))
+const certain = (ms = [movement()], ds = [invoice('i', 300, { paid: 0 })]) => certainReconciliationPairs(ms, ds)
+assert.equal(certain().length, 1)
+assert.equal(certain([movement()], [invoice('i', 300, { paid: null })]).length, 1, 'No recorded bank share can have null paid; full comparable residual still required')
+assert.equal(certain([movement()], [invoice('i', 300, { paid: 0, autoBlock: 'Originale assente' })]).length, 0)
+assert.equal(certain([movement('a'), movement('b')]).length, 0, 'Competing bank facts are never automatic')
+assert.equal(certain([movement()], [invoice('a', 300, { paid: 0 }), invoice('b', 300, { paid: 0 })]).length, 0, 'Competing documents are never automatic')
+assert.equal(certain([movement('a', 300, { label: 'Sconosciuto', description: '' })]).length, 0)
+assert.equal(certain([movement('a', 300, { label: 'Annalisa Smiraglia', description: 'Bonifico Annalisa Smiraglia' })], [invoice('i', 300, { counterpartyName: 'Gabriele Saraiello', paid: 0 })]).length, 0)
+assert.equal(certain([movement('a', 300, { date: '2026-10-30' })]).length, 0, 'Anticipi need manual verification')
+assert.equal(certain([movement('a', 300, { date: '2026-12-01' })]).length, 0)
+assert.equal(certain([movement('a', 300, { available: 200 })], [invoice('i', 200, { paid: 0 })]).length, 0, 'Already split movements remain manual')
+assert.equal(certain([movement()], [invoice('i', 400, { paid: 100, remaining: 300 })]).length, 0)
+assert.equal(certain([movement('m', 300, { label: 'ChatGPT', description: 'OPENAI CHATGPT' })], [invoice('i', 300, { counterpartyName: 'OpenAI Ireland Limited', paid: 0 })]).length, 1)
+assert.ok(run([movement('wide', 180)], [invoice('w1', 30), invoice('w2', 40), invoice('w3', 50), invoice('w4', 60)]).suggestions.some(p => p.invoices.length === 4 && p.exact), 'An exact cumulative payment can suggest more than three invoices')
 console.log('Tutti i controlli passano')

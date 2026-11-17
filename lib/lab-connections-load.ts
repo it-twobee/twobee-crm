@@ -9,7 +9,7 @@ export async function loadLabConnections(today: string): Promise<LabConnectionDa
   try {
     const [revenue, costs, months, allocations, legacy, slips, hrInvoices, pdfs, salaryLinks, people, f24, f24Lines, settlements, payouts, reconciliations] = await Promise.all([
       readLabRows('pl_revenue_lines', 'id,invoice_id,stream_id,month_id,label', today),
-      readLabRows('pl_cost_lines', 'id,invoice_id,month_id,label', today), readLabRows('pl_months', 'id,month', today),
+      readLabRows('pl_cost_lines', 'id,invoice_id,month_id,label,category', today), readLabRows('pl_months', 'id,month', today),
       readLabRows('payment_allocations', '*', today), readLabRows('bank_tx_lines', '*', today),
       readLabRows('hr_payslips', 'id,person_id,month', today), readLabRows('hr_invoices', 'id,person_id,month,invoice_id', today),
       readLabRows('payslips', 'id,profile_id,year,month', today), readLabRows('bank_tx_payslips', 'tx_id,payslip_id,amount', today),

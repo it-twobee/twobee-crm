@@ -1,4 +1,5 @@
 import 'server-only'
+import { bankReviewRows } from '@/lib/lab-bank-review'
 import { createHash } from 'node:crypto'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabBank } from '@/lib/lab-bank-load'
@@ -40,5 +41,5 @@ export async function loadLabReconciliations(today: string, editId?: string, ado
   const hash = createHash('sha256')
   hash.write(JSON.stringify({ ...sources, heads: store.heads.map(h => [h.id, h.version, h.status]), shares, adopt: adopt ? [adopt.id, adopt.invoice_id] : null }))
   const basis = hash.digest('hex')
-  return { legacy: bank.txs.filter(t => t.source === 'banca' && t.invoice_id).map(t => ({ movementId: t.id, invoiceId: t.invoice_id! })), ready: store.ready, setupMessage: store.ready ? null : 'Il registro raccordi deve essere attivato sul database prima di salvare.', ...sources, basis, editId: edit?.id ?? null, version: edit?.version ?? 0, adoptMovement: adopt?.id ?? null, adoptInvoice: adopt?.invoice_id ?? null, pairs: edit ? store.items.filter(i => i.reconciliation_id === edit.id).map(i => ({ movementId: i.tx_id, documentId: i.invoice_id, amount: i.amount })) : [], records: store.heads.map(h => ({ ...h, items: store.items.filter(i => i.reconciliation_id === h.id) })), events: store.events }
+  return { review: bankReviewRows(bank.txs, bank.accounts, documents, adjusted, proof, sources.movements, today), legacy: bank.txs.filter(t => t.source === 'banca' && t.invoice_id).map(t => ({ movementId: t.id, invoiceId: t.invoice_id! })), ready: store.ready, setupMessage: store.ready ? null : 'Il registro raccordi deve essere attivato sul database prima di salvare.', ...sources, basis, editId: edit?.id ?? null, version: edit?.version ?? 0, adoptMovement: adopt?.id ?? null, adoptInvoice: adopt?.invoice_id ?? null, pairs: edit ? store.items.filter(i => i.reconciliation_id === edit.id).map(i => ({ movementId: i.tx_id, documentId: i.invoice_id, amount: i.amount })) : [], records: store.heads.map(h => ({ ...h, items: store.items.filter(i => i.reconciliation_id === h.id) })), events: store.events }
 }

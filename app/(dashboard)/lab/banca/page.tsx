@@ -58,7 +58,7 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
         <p className="text-sm text-text-secondary">Effettivo consolidato: solo entrate e uscite di origine banca. Le fatture spiegano i movimenti, non li sostituiscono.</p>
         <p className="text-2xs text-text-tertiary mt-1">Movimenti da estratto · importi lordi · dati osservati fino al {today} · in verifica</p>
       </header>
-      <div className="flex flex-wrap gap-2"><LabReconcileButton label="Collega banca e fatture" /><Link href="/lab/fonti" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text">Verifica estratto</Link><Link href="/lab/raccordi" className="inline-flex min-h-11 items-center px-3 text-sm text-gold-text underline">Registro raccordi</Link></div>
+      <div className="flex flex-wrap gap-2"><LabReconcileButton label="Collega banca e fatture" /><Link href="/lab/fonti" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text">Verifica estratto</Link><Link href="/lab/raccordi" className="inline-flex min-h-11 items-center px-3 text-sm text-gold-text underline">Controlla tutti i movimenti</Link></div>
       <LabBankPeriodPicker key={period.mode + period.from + period.to} period={period} month={month} today={today} parameters={{ q: query, riferimenti: filter, documenti: documentFilter, verso: direction, tipo: kind, vista: view, conto: selected ?? 'tutti' }} />
       {!data.ok ? <p role="alert" className="rounded-xl p-4 bg-warning-dim text-warning text-sm">{data.message}</p> : <>
         <nav id="sintesi" aria-label="Filtra conto" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

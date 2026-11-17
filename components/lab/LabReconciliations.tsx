@@ -1,4 +1,5 @@
 'use client'
+import LabBankReview from '@/components/lab/LabBankReview'
 import { useEffect, useState } from 'react'
 import Link from '@/components/lab/LabLink'
 import { useReconciliationPopup } from '@/components/lab/LabReconciliationProvider'
@@ -10,6 +11,7 @@ const field = 'min-h-11 w-full min-w-0 rounded-xl border border-border-interacti
 const money = (n: number, c: string) => c === 'EUR' ? eur2(n) : `${n.toFixed(2)} ${c}`
 const date = (v: string) => new Date(v).toLocaleString('it-IT', { timeZone: 'Europe/Rome', dateStyle: 'short', timeStyle: 'short' })
 export default function LabReconciliations({ initial, autoOpen, initialMovement, initialDocument }: { initial: ReconciliationData; autoOpen?: boolean; initialMovement?: string; initialDocument?: string }) {
+  const [workspace, setWorkspace] = useState<'review' | 'registry'>('review')
   const open = useReconciliationPopup(), [data, setData] = useState(initial), [error, setError] = useState(''), [query, setQuery] = useState(''), [status, setStatus] = useState('active'), [from, setFrom] = useState(''), [to, setTo] = useState(''), [side, setSide] = useState(''), [limit, setLimit] = useState(30)
   useEffect(() => { setData(initial) }, [initial])
   useEffect(() => { if (autoOpen && open) open({ movementId: initialMovement, documentId: initialDocument }) }, [])
@@ -22,6 +24,10 @@ export default function LabReconciliations({ initial, autoOpen, initialMovement,
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
   const legacy = data.legacy.filter(r => status !== 'cancelled' && status !== 'verified' && status !== 'pending' && (!side || inv(r.invoiceId)?.side === side) && (!q || `${tx(r.movementId)?.label ?? ''} ${inv(r.invoiceId)?.label ?? ''}`.toLocaleLowerCase('it').includes(q)) && (!from || (tx(r.movementId)?.date ?? '') >= from) && (!to || (tx(r.movementId)?.date ?? '') <= to))
   return <div className="space-y-5">
+    <nav aria-label="Area raccordi" className="flex flex-wrap gap-2"><button type="button" aria-pressed={workspace === 'review'} className={`${button} ${workspace === 'review' ? 'bg-surface-active font-semibold' : ''}`} onClick={() => setWorkspace('review')}>Controlla e raccorda</button><button type="button" aria-pressed={workspace === 'registry'} className={`${button} ${workspace === 'registry' ? 'bg-surface-active font-semibold' : ''}`} onClick={() => setWorkspace('registry')}>Registro e storico</button></nav>
+    {error && <p role="alert" className="text-sm text-warning">{error}</p>}
+    {workspace === 'review' && <LabBankReview data={data} onRegistry={() => setWorkspace('registry')} />}
+    <div hidden={workspace !== 'registry'} className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="max-w-2xl text-sm text-text-secondary">Qui trovi i raccordi salvati e quelli storici. Apri il popup per collegare le voci; torna qui per controllare quote, modifiche e verifiche.</p><button type="button" onClick={() => open?.({})} disabled={!open} className="min-h-11 rounded-xl bg-gold px-5 text-sm font-semibold text-on-gold">Nuovo raccordo</button></div>
     {data.setupMessage && <p role="alert" className="rounded-xl bg-warning-dim p-4 text-sm text-warning">{data.setupMessage} I collegamenti storici restano consultabili.</p>}
     {error && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">{error}</p>}
@@ -41,5 +47,5 @@ export default function LabReconciliations({ initial, autoOpen, initialMovement,
     {rows.length > limit && <button type="button" className={button} onClick={() => setLimit(limit + 30)}>Mostra altri 30 raccordi</button>}
     {legacy.length > 0 && <details open={rows.length === 0} className="rounded-2xl border border-border bg-surface p-4"><summary className="cursor-pointer py-2 text-sm font-semibold text-gold-text">Collegamenti precedenti al registro · {legacy.length}</summary><p className="my-3 text-2xs text-text-secondary">Puoi acquisire nel registro i collegamenti diretti semplici, oppure rimuoverli con storico. Se un movimento contiene anche quote economiche, cedolini o F24, il popup conserva i vincoli e mostra le prove da verificare.</p><ul className="divide-y divide-border">{legacy.slice(0, limit).map(r => <li key={r.movementId} className="py-3 space-y-2"><p className="text-sm text-text-primary">{tx(r.movementId)?.label ?? 'Movimento'} → {inv(r.invoiceId)?.label ?? 'Fattura'}</p><p className="text-2xs text-text-secondary">{tx(r.movementId)?.date} · movimento totale {tx(r.movementId) ? money(Math.abs(tx(r.movementId)!.signedAmount), tx(r.movementId)!.currency) : 'n/d'} · quota da verificare sulle prove</p><div className="flex flex-wrap gap-2"><button type="button" className={button} onClick={() => open?.({ adoptMovement: r.movementId, movementId: r.movementId, documentId: r.invoiceId })}>Apri / modifica</button><button type="button" className={button} onClick={() => open?.({ adoptMovement: r.movementId, movementId: r.movementId, documentId: r.invoiceId, operation: 'unlink_legacy' })}>Rimuovi collegamento</button><Link href={tx(r.movementId)?.href ?? '/lab/banca'} className={button}>Prove</Link></div></li>)}</ul>{legacy.length > limit && <button type="button" className={`${button} mt-3`} onClick={() => setLimit(limit + 30)}>Mostra altri collegamenti</button>}</details>}
     {!rows.length && !legacy.length && <p className="rounded-xl border border-border p-4 text-sm text-text-secondary">Nessun raccordo con questi filtri. Apri “Nuovo raccordo” per collegare movimenti e fatture.</p>}
-  </div>
+  </div></div>
 }

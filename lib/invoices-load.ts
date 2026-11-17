@@ -8,7 +8,7 @@ import { withDueRule, withRectifications, type Invoice } from '@/lib/invoices'
 export const INVOICE_COLUMNS =
   'id, direction, doc_type, number, issued_on, counterparty_name, counterparty_vat, '
   + 'client_id, taxable, vat_amount, total, sign, due_date, paid_on, pdf_path, '
-  + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id'
+  + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id, source_file'
 
 const n = (v: unknown) => Number(v ?? 0)
 
@@ -27,6 +27,7 @@ export function toInvoices(rows: Record<string, unknown>[]): Invoice[] {
     dueDate: (r.due_date as string) ?? null,
     paidOn: (r.paid_on as string) ?? null,
     pdfPath: (r.pdf_path as string) ?? null,
+    sourceFile: (r.source_file as string) ?? null,
     excludedReason: (r.excluded_reason as string) ?? null,
     warnings: (r.warnings as string[]) ?? undefined,
     fromSdi: r.from_sdi === true,

@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Controllo totale e coda raccordi — 17 novembre 2026
+
+Mandato esplicito: raccordare i riscontri univoci e rendere semplici gli altri. Audit di 318 movimenti bancari dal 28 aprile al 17 novembre; coda per causale, proposte rigorose, popup e registro. [Riscontri, Gabriele, implementazione e blocco SQL](controllo-totale-banca-2026-11-17.md). Nessun raccordo reale dichiarato salvato senza attivazione del registro.
+
 ## Periodi estesi e liberi in Banca Lab — 17 novembre 2026
 
 Mese, 30/90 giorni, 6 mesi, trimestre, anno, storico e dal/al. Flussi e grafici seguono il periodo; saldo cumulato alla fine osservabile. [Criteri e controlli](banca-periodi-2026-11-17.md). Nessuna scrittura o sostituzione Economics.

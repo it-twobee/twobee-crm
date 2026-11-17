@@ -53,6 +53,7 @@ export type Invoice = {
   paidOn: string | null
   warnings?: string[]
   /** §250 — il documento allegato: PDF o immagine, su storage privato */
+  sourceFile?: string | null
   pdfPath?: string | null
   /**
    * §281 — perché questa fattura è **fuori dai conti**: duplicata, stornata,

@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Controllo totale e coda raccordi — 17 novembre 2026
+
+Mandato esplicito: raccordare i riscontri univoci e rendere semplici gli altri. Audit di 318 movimenti bancari dal 28 aprile al 17 novembre; coda per causale, proposte rigorose, popup e registro. [Riscontri, Gabriele, implementazione e blocco SQL](controllo-totale-banca-2026-11-17.md). Nessun raccordo reale dichiarato salvato senza attivazione del registro.
+
 ## Audit raccordi fornitori — 17 novembre 2026
 
 [PDF solo archiviati, 78 proposte e verifiche documentali](raccordi-fornitori-2026-11-17.md). Originali confrontati per SHA-256; 59 Meta con riferimento esatto. Nessuna scrittura finanziaria, registrazione fatture o attivazione del registro eseguita.

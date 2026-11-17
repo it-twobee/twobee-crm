@@ -1,7 +1,7 @@
 import { matchingPlan, type MatchMovement, type MatchDocument } from '@/lib/lab-matching'
 export type MatchSuggestion = { id: string; movements: string[]; invoices: string[]; score: number; level: 'alta' | 'media' | 'bassa'; reasons: string[]; warnings: string[]; total: number; currency: string; exact: boolean }
 export type SuggestionHistory = { status: string; verified_at: string | null; items: { tx_id: string; invoice_id: string }[] }
-type Signal = { movement: MatchMovement; invoice: MatchDocument; name: number; reference: boolean; score: number; reasons: string[]; warnings: string[]; datePoints: number }
+type Signal = { movement: MatchMovement; invoice: MatchDocument; name: number; reference: boolean; score: number; reasons: string[]; warnings: string[]; datePoints: number; strongIdentity: boolean }
 const cents = (n: number) => Math.round(n * 100)
 const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 const ignored = new Set(['srl', 'srls', 'spa', 'sas', 'snc', 'ltd', 'limited', 'inc', 'llc', 'societa', 'company', 'the', 'studio', 'group', 'gruppo', 'services', 'servizi', 'italia', 'italy', 'ireland', 'emessa', 'ricevuta', 'fpr'])
@@ -14,7 +14,7 @@ function closeWord(a: string, b: string) {
   for (let i = 1; i <= a.length; i++) { const current = [i]; for (let j = 1; j <= b.length; j++) current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + Number(a[i - 1] !== b[j - 1])); previous = current }
   return previous[b.length] <= (Math.min(a.length, b.length) >= 9 ? 2 : 1) ? .78 : 0
 }
-const brands = [['meta', 'facebook', 'facebk'], ['google'], ['microsoft'], ['amazon']]
+const brands = [['meta', 'facebook', 'facebk'], ['google'], ['microsoft'], ['amazon'], ['asana'], ['slack'], ['canva'], ['openai', 'chatgpt'], ['anthropic', 'claude']]
 function nameSignal(name: string, text: string, cache: Map<string, string[]>) {
   const tokens = (s: string) => { const found = cache.get(s); if (found) return found; const value = words(s); cache.set(s, value); return value }
   const a = tokens(name), b = tokens(text)
@@ -85,7 +85,7 @@ function signal(m: MatchMovement, d: MatchDocument, cache: Map<string, string[]>
   if (gap < 0) warnings.push(`Movimento ${-gap} giorni prima dell’emissione: verifica l’anticipo.`)
   let score = Math.min(identity < .45 && !reference ? 50 : gap < -45 ? 40 : 99, Math.round(amountPoints + identity * 35 + (reference ? 25 : 0) + datePoints))
   if (name.approximate && !reference) score = Math.min(score, 79)
-  return { movement: m, invoice: d, name: identity, reference, score, reasons, warnings, datePoints }
+  return { movement: m, invoice: d, name: identity, reference, score, reasons, warnings, datePoints, strongIdentity: !name.approximate && name.value >= .9 && (name.brand || words(entityName(d)).length >= 2 || reference) }
 }
 /** Ranking hints, not calibrated probabilities. Every proposal must still pass the canonical share planner. */
 export function suggestReconciliations(movements: MatchMovement[], invoices: MatchDocument[], anchorMovements: string[] = [], anchorInvoices: string[] = [], history: SuggestionHistory[] = []) {
@@ -143,6 +143,16 @@ export function suggestReconciliations(movements: MatchMovement[], invoices: Mat
       if (sum === target) add([top[i], top[j]], true)
       if (sum < target) for (let k = j + 1; k < top.length; k++) if (sum + amount(top[k]) === target) add([top[i], top[j], top[k]], true)
     }
+    const close = top.filter(s => (s.name >= .9 || s.reference) && s.movement.date >= s.invoice.date && Date.parse(s.movement.date + 'T00:00:00Z') - Date.parse(s.invoice.date + 'T00:00:00Z') <= 14 * 86400000)
+    let visited = 0
+    const walk = (offset: number, total: number, chosen: Signal[]) => {
+      if (++visited > 4096 || groups >= 800) { limited = true; return }
+      if (total === target) { if (chosen.length >= 4) add(chosen, true); return }
+      if (total > target) return
+      for (let i = offset; i < close.length; i++) walk(i + 1, total + amount(close[i]), [...chosen, close[i]])
+    }
+    if (close.length >= 4) walk(0, 0, [])
+
   }
   if (selectedM.size <= 1) for (const m of ms.filter(m => !selectedM.size || selectedM.has(m.id))) combinations(signals.filter(s => s.movement.id === m.id), s => cents(s.invoice.remaining!), cents(m.available!))
   if (selectedD.size <= 1) for (const d of ds.filter(d => !selectedD.size || selectedD.has(d.id))) combinations(signals.filter(s => s.invoice.id === d.id), s => cents(s.movement.available!), cents(d.remaining!))
@@ -157,5 +167,29 @@ export function suggestReconciliations(movements: MatchMovement[], invoices: Mat
     const rawRival = [...p.movements.map(id => `m:${id}`), ...p.invoices.map(id => `d:${id}`)].some(key => rawCompeting.get(key)?.some(s => s.score >= original.get(p.id)! - 8 && (!p.movements.includes(s.movement.id) || !p.invoices.includes(s.invoice.id))))
     if (rival || rawRival) { p.warnings.push('Esistono altri abbinamenti plausibili, anche fuori dalla selezione corrente.'); p.score = Math.min(p.score, 69); p.level = p.score >= 60 ? 'media' : 'bassa' }
   }
-  return { suggestions: proposals.sort((a, b) => b.score - a.score || Number(b.exact) - Number(a.exact) || a.id.localeCompare(b.id)).slice(0, 40), limited: limited || proposals.length > 40 }
+  return { suggestions: proposals.sort((a, b) => b.score - a.score || Number(b.exact) - Number(a.exact) || (a.movements.length + a.invoices.length) - (b.movements.length + b.invoices.length) || a.id.localeCompare(b.id)).slice(0, 40), limited: limited || proposals.length > 40 }
 }
+
+/** Automatic scope is deliberately stricter than ranked suggestions: full 1:1, unique both ways. */
+export function certainReconciliationPairs(movements: MatchMovement[], invoices: MatchDocument[]) {
+  const candidates: { movementId: string; documentId: string; amount: number; reasons: string[] }[] = []
+  const cache = new Map<string, string[]>()
+  for (const m of movements.filter(m => !m.why && m.currency === 'EUR' && m.available != null && m.available > 0 && cents(m.available) === cents(Math.abs(m.signedAmount)))) {
+    for (const d of invoices.filter(d => !d.why && !d.autoBlock && d.counterpartyName && d.number && d.remaining != null && d.remaining > 0 && (d.paid == null || d.paid === 0) && d.total != null && cents(d.remaining) === cents(d.total))) {
+      if (m.currency !== d.currency || Math.sign(m.signedAmount) !== d.direction || cents(m.available!) !== cents(d.remaining!)) continue
+      const gap = (Date.parse(m.date + 'T00:00:00Z') - Date.parse(d.date + 'T00:00:00Z')) / 86400000
+      if (!Number.isFinite(gap) || gap < 0 || gap > 14) continue
+      const s = signal(m, d, cache, new Map())
+      if (!s.strongIdentity || s.warnings.length) continue
+      const plan = matchingPlan(movements, invoices, [m.id], [d.id])
+      if (plan.issues.length) continue
+      candidates.push({ movementId: m.id, documentId: d.id, amount: plan.total, reasons: s.reasons })
+    }
+  }
+  return candidates.filter(p => candidates.filter(q => q.movementId === p.movementId).length === 1 && candidates.filter(q => q.documentId === p.documentId).length === 1)
+    .sort((a, b) => a.movementId.localeCompare(b.movementId))
+}
+
+export const counterpartyMatchStrength = (name: string, text: string) => nameSignal(name, text, new Map()).value
+
+export const recognizedSupplier = (text: string) => { const tokens = words(text); return brands.find(group => tokens.some(t => group.includes(t)))?.[0] ?? null }
