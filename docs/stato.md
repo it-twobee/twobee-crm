@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Studio Banca Economics → Laboratorio — 17 novembre 2026
+
+[Confronto funzionale, proposta di pagina, priorità e criteri di usabilità](studio-banca-economics-laboratorio-2026-11-17.md). Analisi dei componenti, non verifica visiva autenticata; nessuna funzione nuova implementata da questo studio e nessuna sostituzione Economics.
+
 ## Popup raccordi: spazio agli elenchi — 17 novembre 2026
 
 Corpo unico scorrevole, finestra ampliata, righe compatte e riepilogo espandibile richiamabile dalla barra finale. [Percorso aggiornato](raccordi-popup-2026-11-17.md#spazio-di-lavoro-aggiornato). Nessuna modifica al calcolo o al salvataggio.
