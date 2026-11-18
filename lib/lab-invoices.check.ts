@@ -83,4 +83,11 @@ for (const path of ['lib/lab-read.ts', 'lib/lab-invoices-load.ts', 'app/(dashboa
   assert.doesNotMatch(source, /\.\s*(insert|update|upsert|delete|rpc)\s*\(/)
   assert.doesNotMatch(source, /from ['"]@\/app\/(actions|api)\//)
 }
+const debitReversesCredit = withRectifications([
+  invoice(),
+  invoice({ id: 'nc', sign: -1, docType: 'TD04', taxable: 500, rectifiesId: 'i' }),
+  invoice({ id: 'nd', docType: 'TD05', taxable: 300, rectifiesId: 'nc' }),
+])
+assert.equal(debitReversesCredit.find(d => d.id === 'i')?.rectifiedAmount, 200)
+
 console.log('Tutti i controlli passano')

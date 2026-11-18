@@ -22,6 +22,11 @@ const compact = run([movement('m', 300, { label: 'DILEOFATIMA', description: '' 
 assert.ok(compact.reasons.some(r => r.includes('senza spazi')))
 const brand = run([movement('m', 300, { label: 'Meta Ads', description: 'FACEBK *F7CUHCSK64' })], [invoice('i', 300, { counterpartyName: 'Meta Platforms Ireland Limited' })]).suggestions[0]
 assert.ok(brand.reasons.some(r => r.includes('Marchio')))
+const metaReference = run([movement('m', 300, { label: 'Meta Ads', description: 'ADDEBITO FACEBK *F7CUHCSK64' })], [invoice('i', 300, { counterpartyName: 'Meta Platforms Ireland Limited', number: 'FACEBK F7CUHCSK64' })]).suggestions[0]
+assert.ok(metaReference.reasons.some(r => r.includes('Numero fattura')))
+const metaBatch = run([movement('m', -13, { label: 'Meta Ads', description: 'FACEBK', date: '2026-11-03' })],
+  Array.from({ length: 13 }, (_, n) => invoice(String(n), 1, { counterpartyName: 'Meta Platforms Ireland Limited', direction: -1, side: 'ricevuta' }))).suggestions
+assert.ok(metaBatch.some(p => p.exact && p.invoices.length === 13), 'Meta batches can cover more than twelve invoice rows')
 const reference = run([movement('m', 300, { label: 'Altro', description: 'Saldo fatture FPR68/26' })]).suggestions[0]
 assert.ok(reference.reasons.some(r => r.includes('Numero fattura')))
 const numeric = run([movement('m', 300, { label: 'Altro', description: 'Saldo fattura n. 100' })], [invoice('i', 300, { number: '100' })]).suggestions[0]

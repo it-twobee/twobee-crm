@@ -100,12 +100,21 @@ export function withRectifications(invoices: Invoice[]): Invoice[] {
   const byId = new Map(invoices.map(i => [i.id, i]))
   const notes = new Map<string, { ids: string[]; credited: number }>()
 
+  const reversals = new Map<string, number>()
+  for (const note of invoices) {
+    const target = note.rectifiesId ? byId.get(note.rectifiesId) : undefined
+    if (isDebitNote(note.docType) && target && target.id !== note.id && target.sign < 0
+      && target.direction === note.direction && (!note.counterpartyVat || !target.counterpartyVat || note.counterpartyVat === target.counterpartyVat)) {
+      reversals.set(target.id, r2((reversals.get(target.id) ?? 0) + Math.abs(note.taxable)))
+    }
+  }
+
   for (const n of invoices) {
-    if (!n.rectifiesId || !byId.has(n.rectifiesId)) continue
+    if (!n.rectifiesId || n.rectifiesId === n.id || !byId.has(n.rectifiesId)) continue
     const cur = notes.get(n.rectifiesId) ?? { ids: [], credited: 0 }
     cur.ids.push(n.id)
-    // solo il credito annulla: una nota di debito rifattura, e va sommata altrove
-    if (n.sign < 0) cur.credited = r2(cur.credited + Math.abs(n.taxable))
+    // La nota di debito riduce lo storno fino all’importo originario del credito.
+    if (n.sign < 0) cur.credited = r2(cur.credited + Math.max(0, Math.abs(n.taxable) - (reversals.get(n.id) ?? 0)))
     notes.set(n.rectifiesId, cur)
   }
 

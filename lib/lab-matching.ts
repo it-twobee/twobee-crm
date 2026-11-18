@@ -1,9 +1,10 @@
+import { isCreditNote, isDebitNote, isVoided, partlyVoided } from '@/lib/invoices'
 import type { LabBankAccount, LabBankTx } from '@/lib/lab-bank'
 import type { LabConnectionData } from '@/lib/lab-connections'
 import type { LabInvoice } from '@/lib/lab-invoices'
 import type { InvoiceBankResult } from '@/lib/lab-invoice-bank'
 
-export type MatchMovement = { id: string; label: string; description?: string; date: string; account: string; accountId?: string; currency: string; signedAmount: number; available: number | null; why: string | null; href: string }
+export type MatchMovement = { id: string; label: string; description?: string; reference?: string | null; date: string; account: string; accountId?: string; currency: string; signedAmount: number; available: number | null; why: string | null; href: string }
 export type MatchDocument = { id: string; label: string; date: string; currency: string; direction: number; side?: 'emessa' | 'ricevuta'; counterpartyName?: string; number?: string; autoBlock?: string | null; total: number | null; paid: number | null; remaining: number | null; why: string | null; href: string }
 export type MatchPair = { movementId: string; documentId: string; amount: number }
 export type MatchPlan = { pairs: MatchPair[]; issues: string[]; total: number; movementRemainders: { id: string; amount: number }[]; documentRemainders: { id: string; amount: number }[] }
@@ -18,12 +19,25 @@ export function matchingSources(accounts: LabBankAccount[], txs: LabBankTx[], do
     const issues = [...(checked?.issues ?? []), ...(checked?.links.flatMap(l => l.issues) ?? [])]
     const why = !account || !checked ? 'Conto o raccordi non disponibili' : t.hidden_reason ? 'Movimento nascosto operativo: verifica il motivo prima di raccordare fatture' : t.kind === 'giroconto' || t.transfer_pair_id ? 'Giroconto: verifica la coppia di conti' : t.payslip_id || t.hr_invoice_id || refs.salaryLinks.some(l => l.tx_id === t.id) ? 'Movimento riferito a documenti risorse: verifica le quote nella sezione Risorse' : t.no_match_needed ? 'Movimento classificato senza abbinamento richiesto' : issues.length ? 'Riferimenti o quote esistenti da verificare' : explicit && !parts.length ? 'Movimento già impegnato da un riferimento diretto' : !Number.isFinite(reserved) || reserved > cents(Math.abs(t.amount)) ? 'Quote esistenti da verificare' : null
     const available = why ? null : Math.max(0, cents(Math.abs(t.amount)) - reserved) / 100
-    return { id: t.id, label: t.counterparty || t.description || 'Movimento', description: t.description, date: t.booked_on, accountId: t.account_id, account: account?.label ?? 'Conto n/d', currency: account?.currency ?? '', signedAmount: t.amount, available, why: why ?? (available === 0 ? 'Movimento già interamente attribuito' : null), href: `/lab/banca?${new URLSearchParams({ m: `${t.booked_on.slice(0, 7)}-01`, conto: t.account_id, movimento: t.id })}#movimento-${t.id}` }
+    return { id: t.id, label: t.counterparty || t.description || 'Movimento', description: t.description, reference: t.doc_ref, date: t.booked_on, accountId: t.account_id, account: account?.label ?? 'Conto n/d', currency: account?.currency ?? '', signedAmount: t.amount, available, why: why ?? (available === 0 ? 'Movimento già interamente attribuito' : null), href: `/lab/banca?${new URLSearchParams({ m: `${t.booked_on.slice(0, 7)}-01`, conto: t.account_id, movimento: t.id })}#movimento-${t.id}` }
   })
+  const byId = new Map(documents.map(d => [d.id, d]))
   const invoices: MatchDocument[] = documents.filter(d => d.issuedOn <= today).map(d => {
     const p = proof.invoices.get(d.id)
-    const remaining = p && !p.issues.length && p.expected != null && p.state !== 'eccedente' ? Math.max(0, cents(p.expected) - cents(p.paidKnown ?? 0)) / 100 : null
-    return { id: d.id, label: `${d.direction === 'emessa' ? 'Emessa' : 'Ricevuta'} ${d.number} · ${d.counterpartyName}`, date: d.issuedOn, currency: d.currency, side: d.direction, counterpartyName: d.counterpartyName, number: d.number, autoBlock: (p?.references.length ?? 0) > 0 || d.excludedReason || (d.warnings ?? []).some(w => /rettific|sostitut|inserita a mano|totale derivato|ritenut|non quadra/i.test(w)) ? 'Documento da verificare manualmente' : !d.pdfPath && !d.fromSdi && !(d.sourceFile && /\.(xml|p7m)$/i.test(d.sourceFile)) ? 'Originale fattura non associato' : null, direction: (d.direction === 'emessa' ? 1 : -1) * d.sign, total: p?.expected ?? null, paid: p?.paidKnown ?? null, remaining, why: remaining == null ? 'Ritenute, rettifiche o riferimenti da verificare' : remaining === 0 ? 'Importo già coperto dalle quote bancarie' : null, href: `/lab/fatturazione?documento=${encodeURIComponent(d.id)}` }
+    const parent = d.rectifiesId ? byId.get(d.rectifiesId) : undefined
+    const target = parent ? proof.invoices.get(parent.id) : undefined
+    const documentaryCredit = isCreditNote(d.docType) && parent && parent.sign > 0
+      && parent.direction === d.direction && parent.currency === d.currency
+      && (isVoided(parent) || partlyVoided(parent))
+      && !p?.referencedTxIds.length && !target?.referencedTxIds.length && !parent.paidOn && !parent.declaredPaidAmount
+    const documentaryDebit = isDebitNote(d.docType) && parent && parent.sign < 0
+      && parent.direction === d.direction && parent.currency === d.currency
+      && !p?.referencedTxIds.length && !target?.referencedTxIds.length
+      && !parent.paidOn && !d.paidOn && Math.abs(parent.taxable) >= Math.abs(d.taxable)
+      && Math.abs(parent.total) >= Math.abs(d.total)
+    const documentOnly = documentaryCredit || documentaryDebit
+    const remaining = documentOnly ? null : p && !p.issues.length && p.expected != null && p.state !== 'eccedente' ? Math.max(0, cents(p.expected) - cents(p.paidKnown ?? 0)) / 100 : null
+    return { id: d.id, label: `${d.direction === 'emessa' ? 'Emessa' : 'Ricevuta'} ${d.number} · ${d.counterpartyName}`, date: d.issuedOn, currency: d.currency, side: d.direction, counterpartyName: d.counterpartyName, number: d.number, autoBlock: (p?.references.length ?? 0) > 0 || d.excludedReason || (d.warnings ?? []).some(w => /rettific|sostitut|inserita a mano|totale derivato|ritenut|non quadra/i.test(w)) ? 'Documento da verificare manualmente' : !d.pdfPath && !d.fromSdi && !(d.sourceFile && /\.(xml|p7m)$/i.test(d.sourceFile)) ? 'Originale fattura non associato' : null, direction: (d.direction === 'emessa' ? 1 : -1) * d.sign, total: p?.expected ?? null, paid: p?.paidKnown ?? null, remaining, why: documentOnly ? 'Rettifica documentale collegata: apri la catena prima di attribuire un rimborso' : remaining == null ? 'Ritenute, rettifiche o riferimenti da verificare' : remaining === 0 ? 'Importo già coperto dalle quote bancarie' : null, href: `/lab/fatturazione?documento=${encodeURIComponent(d.id)}` }
   })
   return { movements, invoices }
 }

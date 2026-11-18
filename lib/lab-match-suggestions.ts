@@ -14,7 +14,7 @@ function closeWord(a: string, b: string) {
   for (let i = 1; i <= a.length; i++) { const current = [i]; for (let j = 1; j <= b.length; j++) current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + Number(a[i - 1] !== b[j - 1])); previous = current }
   return previous[b.length] <= (Math.min(a.length, b.length) >= 9 ? 2 : 1) ? .78 : 0
 }
-const brands = [['meta', 'facebook', 'facebk'], ['google'], ['microsoft'], ['amazon'], ['asana'], ['slack'], ['canva'], ['openai', 'chatgpt'], ['anthropic', 'claude']]
+const brands = [['meta', 'facebook', 'facebk'], ['google'], ['ovh', 'ovhcloud'], ['microsoft'], ['amazon'], ['asana'], ['slack'], ['canva'], ['openai', 'chatgpt'], ['anthropic', 'claude']]
 function nameSignal(name: string, text: string, cache: Map<string, string[]>) {
   const tokens = (s: string) => { const found = cache.get(s); if (found) return found; const value = words(s); cache.set(s, value); return value }
   const a = tokens(name), b = tokens(text)
@@ -30,6 +30,10 @@ function nameSignal(name: string, text: string, cache: Map<string, string[]>) {
 function documentReference(number: string, text: string) {
   const raw = number.trim(), hay = normalize(text)
   if (!raw || !/\d/.test(raw)) return false
+  // Il riferimento del pagamento Meta compare in causale come FACEBK *<codice>.
+  const metaReference = raw.match(/^facebk[\s*:-]*([a-z0-9]{6,})$/i)?.[1]
+    ?? (/^(?=.*[a-z])(?=.*\d)[a-z0-9]{8,16}$/i.test(raw) ? raw : undefined)
+  if (metaReference && new RegExp(`(?:^|[^a-z0-9])facebk[\\s*:-]*${metaReference}(?:$|[^a-z0-9])`, 'i').test(text)) return true
   const code = raw.match(/\d+\s*[\/-]\s*\d{2,4}/)?.[0]
   if (code && !/\d+\s*[\/-]\s*\d+\s*[\/-]\s*\d+/.test(raw)) {
     const [first, last] = code.split(/[\/-]/).map(s => s.trim().replace(/^0+(?=\d)/, ''))
@@ -63,7 +67,7 @@ function signal(m: MatchMovement, d: MatchDocument, cache: Map<string, string[]>
   const name = nameSignal(entityName(d), `${m.label} ${m.description ?? ''}`, cache)
   const precedents = aliases.get(historyKey(m, d)) ?? 0
   const identity = Math.max(name.value, precedents ? .9 : 0)
-  const reference = documentReference(d.number ?? '', m.description ?? '')
+  const reference = documentReference(d.number ?? '', [m.description, m.reference].filter(Boolean).join(' '))
   const exact = cents(m.available!) === cents(d.remaining!), delta = Math.abs(cents(m.available!) - cents(d.remaining!))
   const reasons: string[] = [], warnings: string[] = []
   let amountPoints = 0
@@ -143,13 +147,20 @@ export function suggestReconciliations(movements: MatchMovement[], invoices: Mat
       if (sum === target) add([top[i], top[j]], true)
       if (sum < target) for (let k = j + 1; k < top.length; k++) if (sum + amount(top[k]) === target) add([top[i], top[j], top[k]], true)
     }
-    const close = top.filter(s => (s.name >= .9 || s.reference) && s.movement.date >= s.invoice.date && Date.parse(s.movement.date + 'T00:00:00Z') - Date.parse(s.invoice.date + 'T00:00:00Z') <= 14 * 86400000)
+    const closePool = sorted.filter(s => (s.name >= .9 || s.reference) && s.movement.date >= s.invoice.date && Date.parse(s.movement.date + 'T00:00:00Z') - Date.parse(s.invoice.date + 'T00:00:00Z') <= 14 * 86400000)
+    if (closePool.length > 24) limited = true
+    const close = closePool.slice(0, 24)
+    const suffix = new Array<number>(close.length + 1).fill(0)
+    for (let i = close.length - 1; i >= 0; i--) suffix[i] = suffix[i + 1] + amount(close[i])
     let visited = 0
     const walk = (offset: number, total: number, chosen: Signal[]) => {
       if (++visited > 4096 || groups >= 800) { limited = true; return }
       if (total === target) { if (chosen.length >= 4) add(chosen, true); return }
-      if (total > target) return
-      for (let i = offset; i < close.length; i++) walk(i + 1, total + amount(close[i]), [...chosen, close[i]])
+      if (total > target || total + suffix[offset] < target) return
+      for (let i = offset; i < close.length && visited <= 4096 && groups < 800; i++) {
+        const next = total + amount(close[i])
+        if (next <= target) walk(i + 1, next, [...chosen, close[i]])
+      }
     }
     if (close.length >= 4) walk(0, 0, [])
 
