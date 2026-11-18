@@ -8,7 +8,7 @@ export async function loadLabConnections(today: string): Promise<LabConnectionDa
   await requireLabAdmin()
   try {
     const [revenue, costs, months, allocations, legacy, slips, hrInvoices, pdfs, salaryLinks, people, f24, f24Lines, settlements, payouts, reconciliations] = await Promise.all([
-      readLabRows('pl_revenue_lines', 'id,invoice_id,stream_id,month_id,label', today),
+      readLabRows('pl_revenue_lines', 'id,invoice_id,stream_id,month_id,label,amount_net,vat_rate,paid,due_date,terms', today),
       readLabRows('pl_cost_lines', 'id,invoice_id,month_id,label,category', today), readLabRows('pl_months', 'id,month', today),
       readLabRows('payment_allocations', '*', today), readLabRows('bank_tx_lines', '*', today),
       readLabRows('hr_payslips', 'id,person_id,month', today), readLabRows('hr_invoices', 'id,person_id,month,invoice_id', today),
