@@ -129,8 +129,16 @@ async function main() {
       pendingIssues: Array.from(new Set(groupIssues)), applied: false }
   })
   const fiscal = vatPeriods(input.months.filter(m => String(m.month) <= today), input.revenue, input.costs, data.vat_settlements, invoices, today)
-  const bankInvoice = invoiceBankReconciliation(invoices, txs, accounts, { revenue: data.pl_revenue_lines, costs: data.pl_cost_lines,
-    allocations: data.payment_allocations, legacy: data.bank_tx_lines, hrInvoices: data.hr_invoices }, today)
+  const [reconciliationHeads, reconciliationItems] = await Promise.all([
+    read('bank_invoice_reconciliations', 'id,status'),
+    read('bank_invoice_reconciliation_items', 'id,reconciliation_id,tx_id,invoice_id,amount'),
+  ])
+  const activeReconciliations = new Set(reconciliationHeads.filter(row => row.status === 'active').map(row => row.id))
+  const invoiceShares = reconciliationItems.filter(row => activeReconciliations.has(row.reconciliation_id)).map(row => ({
+    id: String(row.id), reconciliation_id: String(row.reconciliation_id), tx_id: String(row.tx_id),
+    invoice_id: String(row.invoice_id), amount: numeric(row.amount),
+  }))
+  const bankInvoice = invoiceBankReconciliation(invoices, txs, accounts, { invoiceShares }, today)
   const report = { bankInvoice: { transactions: Array.from(bankInvoice.transactions.values()).filter(t => t.bank), invoices: Array.from(bankInvoice.invoices.values()) }, observedAt, asOf: today, transactionalSnapshot: false, readonly: true,
     counts: Object.fromEntries(tables.map(t => [t, data[t].length])), months, disputes, documentProposals,
     excludedPayrollPlan: input.items.filter(it => !economicPlanItems(input).includes(it)).map(it => ({id:it.id,label:it.label,amount:it.amount})),

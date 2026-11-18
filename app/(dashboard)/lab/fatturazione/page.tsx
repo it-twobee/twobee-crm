@@ -12,7 +12,7 @@ import { requireLabAdmin } from '@/lib/lab-guard'
 import { loadLabInvoices } from '@/lib/lab-invoices-load'
 import { invoiceEvidence, invoiceProposals, invoicePeriod, inInvoicePeriod } from '@/lib/lab-invoices'
 import { romeToday } from '@/lib/lab-bank'
-import { isCreditNote, isDebitNote, signedTotal, partlyVoided } from '@/lib/invoices'
+import { isCreditNote, isDebitNote, isOpen, signedTotal, partlyVoided } from '@/lib/invoices'
 import { eur2 } from '@/lib/money'
 import { quarterOf } from '@/lib/vat'
 import { labContextMonth } from '@/lib/lab-context'
@@ -21,7 +21,7 @@ import LabConnectionList from '@/components/lab/LabConnectionList'
 
 export const dynamic = 'force-dynamic'
 
-const STATES = { verifica: 'Da raccordare in banca', aperte: 'Aperte nel registro', tutte: 'Tutti i documenti', note: 'Note e rettifiche' }
+const STATES = { verifica: 'Da raccordare in banca', aperte: 'Aperte secondo banca', tutte: 'Tutti i documenti', note: 'Note e rettifiche' }
 type State = keyof typeof STATES
 const money = (value: number | null, currency: string) => value == null ? 'n/d'
   : currency === 'EUR' ? eur2(value) : `${value.toFixed(2)} ${currency}`
@@ -50,12 +50,16 @@ export default async function LabInvoicesPage({ searchParams }: {
     if (query) params.set('q', query)
     return `/lab/fatturazione?${params}`
   }
-  const rows = data.ok ? data.invoices.filter(i => i.direction === direction && (focused ? i.id === focused.id : inInvoicePeriod(i, period) && (!documentMonth || i.issuedOn.slice(0, 7) === documentMonth.slice(0, 7)))).map(i => ({ i, evidence: invoiceEvidence(i, data.txs, today) })) : []
-  const visible = rows.filter(({ i, evidence }) => searchParams.documento ? i.id === searchParams.documento
-    : (state === 'tutte' || (state === 'verifica' && (data.ok && data.bankDocuments ? data.bankDocuments.invoices.get(i.id)?.state !== 'coperta' : evidence.needsReview)) || (state === 'aperte' && evidence.open)
+  const rows = data.ok ? data.invoices.filter(i => i.direction === direction && (focused ? i.id === focused.id : inInvoicePeriod(i, period) && (!documentMonth || i.issuedOn.slice(0, 7) === documentMonth.slice(0, 7)))).map(i => {
+    const bankProof = data.bankDocuments?.invoices.get(i.id)
+    const open = isOpen({ ...i, paidOn: null }) && (bankProof?.state === 'senza_riscontro' || bankProof?.state === 'parziale')
+    return { i, evidence: invoiceEvidence(i, data.txs, today), bankProof, open }
+  }) : []
+  const visible = rows.filter(({ i, evidence, open }) => searchParams.documento ? i.id === searchParams.documento
+    : (state === 'tutte' || (state === 'verifica' && (data.ok && data.bankDocuments ? data.bankDocuments.invoices.get(i.id)?.state !== 'coperta' : evidence.needsReview)) || (state === 'aperte' && open)
       || (state === 'note' && (!!i.rectifiesId || !!i.rectifiedBy?.length || isCreditNote(i.docType) || isDebitNote(i.docType))))
       && (!query || `${i.number} ${i.counterpartyName}`.toLocaleLowerCase('it').includes(query.toLocaleLowerCase('it'))))
-    .sort((a, b) => Number(b.evidence.open) - Number(a.evidence.open)
+    .sort((a, b) => Number(b.open) - Number(a.open)
       || (a.i.dueDate ?? '9999').localeCompare(b.i.dueDate ?? '9999') || a.i.id.localeCompare(b.i.id))
   const bankCash = data.ok && data.bankDocuments ? invoiceBankCash(data.bankDocuments, visible.map(r => r.i.id)) : null
   const suggestions = data.ok ? invoiceProposals(data.invoices, data.txs, today) : null
@@ -102,7 +106,7 @@ export default async function LabInvoicesPage({ searchParams }: {
       {data.bankDocuments ? <LabChart chartId="analisi" key={`incassi-${direction}-${state}-${query}-${period?.key ?? ''}-${documentMonth ?? ''}-${focused?.id ?? ''}`} title="Quote fatture passate in banca" note="Solo quote attribuite a movimenti reali EUR, per mese bancario. Non è il fatturato emesso né l’intero flusso del conto. Una quota cumulativa non viene contata per intero su ogni fattura." context={`Fatture ${direction} nella selezione · osservazione ${today}`} initialType="line" series={[{ key: 'incoming', label: 'Entrate bancarie attribuite' }, { key: 'outgoing', label: 'Uscite bancarie attribuite' }]} rows={bankCash?.rows ?? []} /> : <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Raccordi non disponibili: dati bancari attribuiti n/d. Non significa che non siano passati incassi o pagamenti.</p>}
       <details className="rounded-xl border border-border p-4"><summary className="cursor-pointer py-1 text-sm text-gold-text">Registro documenti · importi emessi/ricevuti, non consolidato bancario</summary><div className="mt-3"><LabChart chartId="documenti-emessi" key={`fatture-${direction}-${state}-${query}-${period?.key ?? ''}-${documentMonth ?? ''}-${focused?.id ?? ''}`} title="Documenti per mese di emissione" note="Imponibili EUR con segno delle note, dai documenti nella selezione. Zero indica nessun documento selezionato nel mese intermedio; non è prova di assenza di ricavi. Non rappresenta incassi o residui. Apri un mese per vedere le fatture." context={`Registro ${direction} · ${period?.key ?? 'storico selezionato'} · osservazione ${today}`} initialType="line" series={[{ key: 'documents', label: direction === 'emessa' ? 'Emesso netto · registro documenti' : 'Ricevuto netto · registro documenti' }]} rows={invoiceMonthlyChart(visible.map(r => r.i), direction, href(direction, state))} /></div></details>
       <ul id="dati-prove" className="space-y-3 scroll-mt-6">
-        {visible.map(({ i, evidence }) => {
+        {visible.map(({ i, evidence, bankProof }) => {
           const notes = (i.rectifiedBy ?? []).map(id => data.invoices.find(x => x.id === id)).filter(x => x != null)
           const parent = i.rectifiesId ? data.invoices.find(x => x.id === i.rectifiesId) : undefined
           const candidates = suggestions?.proposals.get(i.id) ?? []
@@ -113,8 +117,7 @@ export default async function LabInvoicesPage({ searchParams }: {
               <span className="text-sm text-text-primary font-semibold tabular-nums whitespace-nowrap">{money(signedTotal(i), i.currency)}</span>
             </div>
             {i.pdfPath && <a href={`/api/invoices/${encodeURIComponent(i.id)}/download`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text hover:bg-surface-hover">Apri documento originale</a>}
-            <p className="text-2xs text-text-secondary">Registro: <strong className="text-text-primary">{evidence.status.label}</strong> · {evidence.status.why}</p>
-            <InvoiceBankPayments proof={data.bankDocuments?.invoices.get(i.id) ?? null} />
+            <InvoiceBankPayments proof={bankProof ?? null} />
             <p className="text-2xs text-text-secondary">Riferimenti diretti in banca: {evidence.real.length ? `${evidence.real.length} movimenti collegati` : 'nessun movimento banca direttamente collegato'} · altri legami tramite quote sono nel raccordo sopra.</p>
             {i.paidOn && !evidence.real.length && <p className="text-2xs text-warning">La data di pagamento è presente nel registro; il campo del registro non è una prova bancaria: leggere le quote verificate sopra.</p>}
             {evidence.wrongDirection && <p className="text-2xs text-warning">Un movimento collegato ha verso incompatibile: da verificare.</p>}
@@ -136,6 +139,7 @@ export default async function LabInvoicesPage({ searchParams }: {
               <summary className="cursor-pointer text-sm text-gold-text py-1">Fonti, rettifiche e movimenti</summary>
               <div className="mt-2 space-y-2 text-2xs text-text-secondary">
                 <p>Documento: imponibile {money(i.taxable, i.currency)} · IVA {money(i.vatAmount, i.currency)} · lordo {money(i.total, i.currency)}. Fonte: archivio fatture{i.fromSdi ? ', XML SdI' : ''}.</p>
+                <p>Registro fatture: {evidence.status.label} · {evidence.status.why}</p>
                 <p>Scadenza: {i.dueDate ?? 'n/d'}{i.dueRule ? ' · regola interna, non data scritta sul documento' : ''}. Pagamento nel registro: {i.paidOn ?? 'n/d'}.</p>
                 {i.withholding !== 0 && <p>Ritenute documentali: {money(i.withholding, i.currency)}; lordo e bonifico non sono automaticamente confrontabili.</p>}
                 {i.declaredPaidAmount != null && <p>Importo pagato dichiarato nel registro: {money(i.declaredPaidAmount, i.currency)}. Non è una quota bancaria confermata da questa vista.</p>}

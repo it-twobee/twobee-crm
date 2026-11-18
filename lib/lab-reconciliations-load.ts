@@ -33,6 +33,7 @@ export async function loadLabReconciliations(today: string, editId?: string, ado
     }
   }
   for (const document of sources.invoices) {
+    if (document.remaining === 0) continue
     const lineIds = new Set([...refs.revenue, ...refs.costs].filter(r => r.invoice_id === document.id).map(r => r.id))
     if (txs.some(t => t.invoice_id === document.id && complexMovements.has(t.id)) || refs.hrInvoices.some(r => r.invoice_id === document.id && txs.some(t => t.hr_invoice_id === r.id)) || txs.some(t => lineIds.has(t.revenue_line_id) || lineIds.has(t.cost_line_id)) || [...refs.allocations, ...refs.legacy].some(a => lineIds.has(a.revenue_line_id) || lineIds.has(a.cost_line_id))) {
       document.remaining = null; document.why = 'Ha quote economiche storiche: apri le prove prima di modificarne i pagamenti.'
