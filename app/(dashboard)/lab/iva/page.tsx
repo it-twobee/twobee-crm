@@ -1,3 +1,5 @@
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import LabSectionGuide from '@/components/lab/LabSectionGuide'
 import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
@@ -28,10 +30,10 @@ export default async function LabVatPage({ searchParams }: { searchParams: { per
   const from = selected.months[0], upTo = today
   const cash = vatCash(data.txs, data.accounts, data.invoices, data.allocations, from, upTo)
   const bankLink = (id: string, account: string, date: string) => `/lab/banca?m=${date.slice(0, 7)}-01&conto=${encodeURIComponent(account)}&movimento=${encodeURIComponent(id)}#movimento-${encodeURIComponent(id)}`
-  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <header><h1 className="text-xl font-semibold text-text-primary">IVA</h1><p className="text-sm text-text-secondary">Quanto risulta dovuto, cosa prova il pagamento e quando scade.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · super admin · in verifica · osservazione {today}</p></header>
+  return <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+    <LabPageHeader section="iva" title="IVA"><p className="text-sm text-text-secondary">Quanto risulta dovuto, cosa prova il pagamento e quando scade.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · super admin · in verifica · osservazione {today}</p></LabPageHeader>
     <LabSectionGuide section="iva" />
-    <nav aria-label="Area risorse e tasse" className="flex flex-wrap gap-3 text-sm"><Link href="/lab/risorse" className="text-gold-text underline">Risorse</Link><Link href="/lab/risorse?vista=versamenti" className="text-gold-text underline">F24 e versamenti</Link><span aria-current="page" className="font-semibold text-text-primary">IVA</span></nav>
+    <nav aria-label="Area risorse e tasse" className={labViewGroup}><Link href="/lab/risorse" className={labViewItem}>Risorse</Link><Link href="/lab/risorse?vista=versamenti" className={labViewItem}>F24 e versamenti</Link><span aria-current="page" className={labViewItem}>IVA</span></nav>
     {searchParams.liquidazione && !focused && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">La liquidazione richiesta non è disponibile nei periodi letti. È mostrato il periodo selezionato automaticamente, non una liquidazione sostitutiva.</p>}
     <form method="get" className="flex flex-wrap items-end gap-3"><LabReturnFields />{contextMonth && <input type="hidden" name="m" value={contextMonth} />}<label className="min-w-0 text-sm text-text-secondary">Periodo<select name="periodo" defaultValue={selected.key} className="block w-full min-w-0 max-w-full mt-1 rounded-xl bg-surface border border-border-interactive p-2 text-text-primary">{periods.map(p => <option key={p.key} value={p.key}>{p.label}{p.deadline < today && p.payment.residual !== 0 ? ' · scaduto, riscontri aperti' : ''}</option>)}</select></label><button className="rounded-xl bg-gold px-4 py-2 text-sm text-on-gold">Mostra</button></form>
     <p className="text-sm text-text-secondary">{selected.label}. La prima apertura dà precedenza agli scaduti con riscontri ancora aperti. Il trimestre corrente resta selezionabile.</p>

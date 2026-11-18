@@ -1,0 +1,2 @@
+export const labViewGroup = 'flex w-fit max-w-full flex-wrap items-center gap-1 rounded-xl border border-border bg-surface p-1'
+export const labViewItem = 'inline-flex min-h-11 items-center rounded-lg border border-transparent px-3 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary aria-[current=page]:border-border aria-[current=page]:bg-gold-dim aria-[current=page]:text-gold-text aria-pressed:border-border aria-pressed:bg-gold-dim aria-pressed:text-gold-text'

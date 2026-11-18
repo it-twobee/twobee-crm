@@ -1,3 +1,4 @@
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import LabSectionGuide from '@/components/lab/LabSectionGuide'
 import { LabReturnFields } from '@/components/lab/LabJourney'
 import LabChart from '@/components/lab/LabChart'
@@ -23,8 +24,8 @@ export default async function LabForecastPage({ searchParams }: { searchParams: 
   const contextMonth = labContextMonth(searchParams.m)
   const baseHref = `/lab/previsionale${contextMonth ? `?m=${contextMonth}` : ''}`
   const scenarioHref = `/lab/previsionale?${new URLSearchParams({ vista: 'simula', ...(contextMonth ? { m: contextMonth } : {}) })}`
-  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <header><h1 className="text-xl font-semibold text-text-primary">Previsionale / Simulatore</h1><p className="text-sm text-text-secondary">Cosa prevedono gli accordi e cosa cambierebbe con nuovi clienti tipo.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · in verifica · base osservata {today} · {options.horizon} mesi da {r.from} a {r.end}</p></header>
+  return <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+    <LabPageHeader section="previsionale" title="Previsionale / Simulatore"><p className="text-sm text-text-secondary">Cosa prevedono gli accordi e cosa cambierebbe con nuovi clienti tipo.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · in verifica · base osservata {today} · {options.horizon} mesi da {r.from} a {r.end}</p></LabPageHeader>
     <LabSectionGuide section="previsionale" />
     <nav aria-label="Letture previsionali" className="flex flex-wrap gap-2 text-sm"><Link href={baseHref} className={`rounded-xl border px-3 py-2 ${!simulated ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>Con gli accordi attuali</Link><Link href={scenarioHref} className={`rounded-xl border px-3 py-2 ${simulated ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>Simula una scelta</Link></nav>
     <aside id="sintesi" className="rounded-xl bg-warning-dim p-4 text-sm text-warning space-y-2"><p>La base è incompleta: puoi confrontare gli accordi, ma non determinare il saldo futuro o la sicurezza della società.</p><details><summary className="cursor-pointer py-1 text-2xs">Perimetro e dati da completare</summary><p className="mt-2 text-2xs">Proiezione dal prossimo mese intero: il mese corrente, i suoi arretrati e i movimenti già nel saldo non vengono reinseriti come nuovi incassi. Le partite aperte del mese corrente restano da riconciliare nel <Link href="/lab/conto-economico" className="underline">Conto economico</Link>.</p></details></aside>

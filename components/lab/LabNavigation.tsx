@@ -3,28 +3,18 @@ import Link from 'next/link'
 import JourneyLink from '@/components/lab/LabLink'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef } from 'react'
-import {
-  ArrowLeft, ArrowRight, CalendarDays, ChartColumn, ChartNoAxesCombined, Check,
-  ChevronDown, ClipboardCheck, FileText, FolderOpen, Handshake, Home, Landmark,
-  LayoutGrid, Link2, UsersRound,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronDown, Home, LayoutGrid } from 'lucide-react'
+import { labSectionIcons } from '@/components/lab/LabPageHeader'
 import { LAB_MODULES, labModule, labPageTitle } from '@/lib/lab-experience'
 import { useLabJourney } from '@/components/lab/LabJourney'
 import { monthLabel } from '@/lib/pl'
 
-const sections = [
-  ['banca', Landmark],
-  ['fatturazione', FileText],
-  ['accordi', Handshake],
-  ['risorse', UsersRound],
-  ['conto-economico', ChartColumn],
-  ['previsionale', ChartNoAxesCombined],
-] as const
+const sections = LAB_MODULES.filter(module => module.key !== 'iva' && module.key !== 'progetti')
 
 const tools = [
-  ['/lab/verifiche', 'Verifiche', ClipboardCheck],
-  ['/lab/fonti', 'Fonti e acquisizione', FolderOpen],
-  ['/lab/raccordi', 'Raccordi banca e fatture', Link2],
+  ['verifiche', 'Verifiche'],
+  ['fonti', 'Fonti e acquisizione'],
+  ['raccordi', 'Raccordi banca e fatture'],
 ] as const
 
 export default function LabNavigation() {
@@ -77,20 +67,22 @@ export default function LabNavigation() {
               if (event.target instanceof Element && event.target.closest('a') && menu.current) menu.current.open = false
             }}>
             <div className="grid grid-cols-2 gap-1.5 p-2 sm:p-3">
-              {sections.map(([key, Icon]) => {
-                const module = LAB_MODULES.find(item => item.key === key)!
+              {sections.map(({ key, title }) => {
+                const Icon = labSectionIcons[key]
                 const active = selected?.key === key || key === 'risorse' && selected?.key === 'iva'
                 return (
                   <JourneyLink key={key} href={href(key)} aria-current={active ? 'page' : undefined} className={`flex min-h-14 min-w-0 items-center gap-2 rounded-xl border p-2 text-2xs font-medium leading-tight sm:text-sm ${active ? 'border-border-strong bg-gold-dim text-gold-text' : 'border-border bg-surface text-text-primary hover:bg-surface-hover'}`}>
                     <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg sm:h-8 sm:w-8 ${active ? 'bg-surface text-gold-text' : 'bg-surface-hover text-text-secondary'}`}><Icon className="h-4 w-4" aria-hidden /></span>
-                    <span>{module.title}</span>
+                    <span>{title}</span>
                     {active && <Check className="ml-auto hidden h-4 w-4 shrink-0 sm:block" aria-hidden />}
                   </JourneyLink>
                 )
               })}
             </div>
             <div className="flex flex-wrap gap-x-1 border-t border-border px-2 py-1 sm:px-3">
-              {tools.map(([path, title, Icon]) => {
+              {tools.map(([key, title]) => {
+                const path = `/lab/${key}`
+                const Icon = labSectionIcons[key]
                 const active = pathname === path
                 return <JourneyLink key={path} href={path === '/lab/verifiche' ? href('verifiche') : path} aria-current={active ? 'page' : undefined} className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-2xs font-medium hover:bg-surface-hover ${active ? 'bg-gold-dim text-gold-text' : 'text-text-secondary'}`}>
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />{title}

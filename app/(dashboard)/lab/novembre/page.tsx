@@ -1,3 +1,4 @@
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import { monthKey, monthLabel, shiftMonth } from '@/lib/pl'
 import Link from '@/components/lab/LabLink'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -20,21 +21,15 @@ export default function MesePage({ searchParams }: { searchParams: { m?: string 
   const oggi = monthKey(new Date())
   const month = /^\d{4}-\d{2}-01$/.test(searchParams.m ?? '') ? searchParams.m! : oggi
   return (
-    <div className="min-h-full pb-8">
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-2">
-          <MonthLink href={`/lab/novembre?m=${shiftMonth(month, -1)}`} label={`Mese precedente: ${monthLabel(shiftMonth(month, -1))}`} dir="prev" />
-          <div className="flex-1 text-center min-w-0">
-            <h1 className="text-base font-semibold text-text-primary leading-tight">{monthLabel(month)}</h1>
-            <p className="text-2xs text-text-tertiary leading-tight">
-              Laboratorio · solo banca · sola lettura
-              {month !== oggi && <> · <Link href={`/lab/novembre?m=${oggi}`} className="underline text-gold-text">torna a {monthLabel(oggi)}</Link></>}
-            </p>
-          </div>
-          <MonthLink href={`/lab/novembre?m=${shiftMonth(month, 1)}`} label={`Mese successivo: ${monthLabel(shiftMonth(month, 1))}`} dir="next" />
-        </div>
-      </div>
-      <div className="max-w-5xl mx-auto px-3 sm:px-4 pt-3 space-y-3">
+    <div className="mx-auto min-h-full min-w-0 max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+      <LabPageHeader section="novembre" title={monthLabel(month)} actions={<>
+        <MonthLink href={`/lab/novembre?m=${shiftMonth(month, -1)}`} label={`Mese precedente: ${monthLabel(shiftMonth(month, -1))}`} dir="prev" />
+        <MonthLink href={`/lab/novembre?m=${shiftMonth(month, 1)}`} label={`Mese successivo: ${monthLabel(shiftMonth(month, 1))}`} dir="next" />
+      </>}>
+        <p className="text-sm text-text-secondary">Vista storica dei movimenti bancari</p>
+        {month !== oggi && <Link href={`/lab/novembre?m=${oggi}`} className="inline-block py-2 text-2xs text-gold-text underline">Torna a {monthLabel(oggi)}</Link>}
+      </LabPageHeader>
+      <div className="space-y-4">
         <Suspense fallback={<p className="text-2xs text-text-tertiary px-1">Leggo i movimenti di banca…</p>}>
           <BancaMese month={month} today={new Date().toISOString().slice(0, 10)} />
         </Suspense>

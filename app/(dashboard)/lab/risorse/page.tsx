@@ -1,3 +1,5 @@
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import { LabRecordScope } from '@/components/lab/LabJourney'
 import LabSectionGuide from '@/components/lab/LabSectionGuide'
 import { LabReturnFields } from '@/components/lab/LabJourney'
@@ -35,13 +37,13 @@ export default async function LabResourcesPage({ searchParams }: { searchParams:
     return `/lab/risorse?${params}`
   }
   const data = await loadLabResources(today)
-  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <header><h1 className="text-xl font-semibold text-text-primary">Risorse &amp; tasse</h1><p className="text-sm text-text-secondary">Per questo mese: costo, documenti e pagamenti, senza confonderli.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · dati riservati · in verifica</p></header>
+  return <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+    <LabPageHeader section="risorse" title="Risorse & tasse"><p className="text-sm text-text-secondary">Per questo mese: costo, documenti e pagamenti, senza confonderli.</p><p className="text-2xs text-text-tertiary mt-1">Sola lettura · dati riservati · in verifica</p></LabPageHeader>
     {data.ok && <LabSectionGuide section="risorse" />}
     <LabMonthPicker month={month} action="/lab/risorse" parameters={{ tipo: group, vista: view, q: query, ...(searchParams.persona && view === 'risorse' ? { persona: searchParams.persona } : {}), ...(searchParams.f24 && view === 'versamenti' ? { f24: searchParams.f24 } : {}) }} label="Mese di competenza" />
-    <nav aria-label="Area risorse e tasse" className="flex flex-wrap gap-2 text-sm">
-      {(['risorse', 'versamenti'] as const).map(v => <Link key={v} href={href(month, group, v)} aria-current={view === v ? 'page' : undefined} className={`px-3 py-2 rounded-xl border ${view === v ? 'border-border-strong bg-surface-active text-text-primary' : 'border-border text-text-secondary'}`}>{v === 'risorse' ? 'Risorse' : 'F24 e versamenti'}</Link>)}
-      <Link href="/lab/iva" className="px-3 py-2 text-gold-text underline">IVA</Link>
+    <nav aria-label="Area risorse e tasse" className={labViewGroup}>
+      {(['risorse', 'versamenti'] as const).map(v => <Link key={v} href={href(month, group, v)} aria-current={view === v ? 'page' : undefined} className={labViewItem}>{v === 'risorse' ? 'Risorse' : 'F24 e versamenti'}</Link>)}
+      <Link href="/lab/iva" className={labViewItem}>IVA</Link>
     </nav>
     {!data.ok ? <p role="alert" className="rounded-xl bg-warning-dim p-4 text-sm text-warning">{data.message}</p> : (() => {
       const personRows = data.people.filter(p => searchParams.persona ? p.id === searchParams.persona : (!group || resourceGroup(p.contract_kind) === group)

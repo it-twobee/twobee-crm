@@ -1,3 +1,5 @@
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import { invoiceBankCash } from '@/lib/lab-invoice-bank'
 import { InvoiceBankPayments } from '@/components/lab/LabInvoiceBankProof'
 import { LabRecordScope } from '@/components/lab/LabJourney'
@@ -58,17 +60,16 @@ export default async function LabInvoicesPage({ searchParams }: {
   const bankCash = data.ok && data.bankDocuments ? invoiceBankCash(data.bankDocuments, visible.map(r => r.i.id)) : null
   const suggestions = data.ok ? invoiceProposals(data.invoices, data.txs, today) : null
 
-  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <header>
-      <h1 className="text-xl text-text-primary font-semibold">Fatturazione</h1>
+  return <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+    <LabPageHeader section="fatturazione" title="Fatturazione">
       <p className="text-sm text-text-secondary">Emesse ↔ entrate bancarie. Ricevute ↔ uscite bancarie. I documenti sono distinti dai fatti consolidati in banca.</p>
       <p className="text-2xs text-text-tertiary mt-1">Documenti e quote bancarie · fino al {today} · in verifica</p>
-    </header>
-    {data.ok && <LabSectionGuide section="fatturazione" />}
+    </LabPageHeader>
+    {data.ok && <LabSectionGuide section="fatturazione" showChart={!!data.bankDocuments} />}
     {!data.ok ? <p role="alert" className="p-4 rounded-xl bg-warning-dim text-warning text-sm">{data.message}</p> : <>
-      <nav aria-label="Tipo fattura" className="flex gap-2">
+      <nav aria-label="Tipo fattura" className={labViewGroup}>
         {(['emessa', 'ricevuta'] as const).map(tipo => <Link key={tipo} href={href(tipo, state)} aria-current={tipo === direction ? 'page' : undefined}
-          className={`px-4 py-2 rounded-xl border text-sm ${tipo === direction ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{tipo === 'emessa' ? 'Emesse' : 'Ricevute'}</Link>)}
+          className={labViewItem}>{tipo === 'emessa' ? 'Emesse' : 'Ricevute'}</Link>)}
       </nav>
       <dl id="sintesi" className="scroll-mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[[focused ? 'Documento selezionato' : 'Documenti nella selezione', String(visible.length)], ['Entrate bancarie attribuite · EUR', money(bankCash?.incoming ?? null, 'EUR')], ['Uscite bancarie attribuite · EUR', money(bankCash?.outgoing ?? null, 'EUR')]].map(([label, value]) => <div key={label} className="p-4 bg-surface rounded-xl border border-border"><dt className="text-2xs text-text-secondary">{label}</dt><dd className="text-xl text-text-primary font-semibold tabular-nums">{value}</dd></div>)}

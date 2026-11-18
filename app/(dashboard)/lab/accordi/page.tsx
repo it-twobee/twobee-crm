@@ -1,3 +1,5 @@
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import { LabRecordScope } from '@/components/lab/LabJourney'
 import LabSectionGuide from '@/components/lab/LabSectionGuide'
 import { LabReturnFields } from '@/components/lab/LabJourney'
@@ -26,11 +28,11 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
   const state = ['Da avviare', 'Attivo', 'Sospeso', 'Concluso'].includes(searchParams.stato ?? '') ? searchParams.stato! : ''
   const url = (value: string) => `/lab/accordi?${new URLSearchParams({ q: query, stato: value, ...(contextMonth ? { m: contextMonth } : {}) })}`
 
-  return <div className="min-h-full min-w-0 break-words max-w-5xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-    <header><h1 className="text-xl font-semibold text-text-primary">Accordi</h1>
+  return <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+    <LabPageHeader section="accordi" title="Accordi">
       <p className="text-sm text-text-secondary">Cliente, progetto, patto e documenti: che cosa manca?</p>
       <p className="text-2xs text-text-tertiary mt-1">Sola lettura · importi pattuiti IVA esclusa · in verifica</p>
-    </header>
+    </LabPageHeader>
     {data.ok && <LabSectionGuide section="accordi" />}
     {!data.ok ? <p role="alert" className="rounded-xl bg-warning-dim text-warning text-sm p-4">{data.message}</p> : <>
       <aside className="bg-surface border border-border rounded-xl p-4 text-sm text-text-secondary">
@@ -43,8 +45,8 @@ export default async function LabDealsPage({ searchParams }: { searchParams: { q
         {state && <input type="hidden" name="stato" value={state} />}
         <button type="submit" className="rounded-xl px-4 py-2 bg-gold text-on-gold text-sm font-medium">Cerca</button>
       </form>
-      <nav aria-label="Stato del lavoro" className="flex flex-wrap gap-2">
-        {['', 'Da avviare', 'Attivo', 'Sospeso', 'Concluso'].map(s => <Link key={s} href={url(s)} aria-current={state === s ? 'page' : undefined} className={`px-3 py-2 rounded-xl border text-sm ${state === s ? 'bg-surface-active border-border-strong text-text-primary' : 'border-border text-text-secondary'}`}>{s || 'Tutti'}</Link>)}
+      <nav aria-label="Stato del lavoro" className={labViewGroup}>
+        {['', 'Da avviare', 'Attivo', 'Sospeso', 'Concluso'].map(s => <Link key={s} href={url(s)} aria-current={state === s ? 'page' : undefined} className={labViewItem}>{s || 'Tutti'}</Link>)}
       </nav>
       {(() => {
         const clients = new Map(data.clients.map(c => [c.id, c.display_name || c.company_name]))

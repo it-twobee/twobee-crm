@@ -1,4 +1,5 @@
 'use client'
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
 import LabBankReview from '@/components/lab/LabBankReview'
 import { useEffect, useState } from 'react'
 import Link from '@/components/lab/LabLink'
@@ -24,7 +25,7 @@ export default function LabReconciliations({ initial, autoOpen, initialMovement,
     .sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id))
   const legacy = data.legacy.filter(r => status !== 'cancelled' && status !== 'verified' && status !== 'pending' && (!side || inv(r.invoiceId)?.side === side) && (!q || `${tx(r.movementId)?.label ?? ''} ${inv(r.invoiceId)?.label ?? ''}`.toLocaleLowerCase('it').includes(q)) && (!from || (tx(r.movementId)?.date ?? '') >= from) && (!to || (tx(r.movementId)?.date ?? '') <= to))
   return <div className="space-y-5">
-    <nav aria-label="Area raccordi" className="flex flex-wrap gap-2"><button type="button" aria-pressed={workspace === 'review'} className={`${button} ${workspace === 'review' ? 'bg-surface-active font-semibold' : ''}`} onClick={() => setWorkspace('review')}>Controlla e raccorda</button><button type="button" aria-pressed={workspace === 'registry'} className={`${button} ${workspace === 'registry' ? 'bg-surface-active font-semibold' : ''}`} onClick={() => setWorkspace('registry')}>Registro e storico</button></nav>
+    <nav aria-label="Area raccordi" className={labViewGroup}><button type="button" aria-pressed={workspace === 'review'} className={labViewItem} onClick={() => setWorkspace('review')}>Controlla e raccorda</button><button type="button" aria-pressed={workspace === 'registry'} className={labViewItem} onClick={() => setWorkspace('registry')}>Registro e storico</button></nav>
     {error && <p role="alert" className="text-sm text-warning">{error}</p>}
     {workspace === 'review' && <LabBankReview data={data} onRegistry={() => setWorkspace('registry')} />}
     <div hidden={workspace !== 'registry'} className="space-y-5">

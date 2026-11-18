@@ -1,10 +1,28 @@
+import { ArrowDown, BookOpen, ChartColumn, LayoutDashboard } from 'lucide-react'
 import Link from '@/components/lab/LabLink'
 import { LAB_MODULES, type LabModuleKey } from '@/lib/lab-experience'
 
-export default function LabSectionGuide({ section }: { section: LabModuleKey }) {
+const shortcut = 'inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-text-secondary hover:bg-surface-hover hover:text-text-primary'
+
+export default function LabSectionGuide({ section, showChart = true }: { section: LabModuleKey; showChart?: boolean }) {
   const module = LAB_MODULES.find(m => m.key === section)!
-  return <section aria-label={module.question} className="rounded-2xl border border-border bg-surface p-3">
-    <nav aria-label="Vai al contenuto" className="flex flex-wrap items-center gap-2"><Link href="#dati-prove" className="inline-flex min-h-11 items-center rounded-xl bg-gold px-3 text-sm font-medium text-on-gold">{module.action}</Link><Link href="#sintesi" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm text-gold-text underline">Sintesi</Link><Link href="#analisi" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm text-gold-text underline">Grafici</Link></nav>
-    <details className="mt-1"><summary className="cursor-pointer py-1 text-2xs text-gold-text">Fonti e criteri di verifica</summary><p className="mt-2 text-2xs text-text-secondary">Fonte: {module.source}. Apri il dettaglio della voce e confronta il documento o movimento collegato. «n/d» indica una fonte da completare; una quota nota non certifica il totale. Le modifiche si fanno nella gestione collegata.</p></details>
-  </section>
+  return (
+    <div className="rounded-xl border border-border bg-surface p-1.5">
+      <div className="flex flex-wrap items-start gap-1">
+        <nav aria-label="In questa sezione" className="flex flex-wrap gap-1">
+          <Link href="#sintesi" className={shortcut}><LayoutDashboard className="h-4 w-4" aria-hidden />Sintesi</Link>
+          {showChart && <Link href="#analisi" className={shortcut}><ChartColumn className="h-4 w-4" aria-hidden />Grafici</Link>}
+          <Link href="#dati-prove" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-gold-dim px-3 text-sm font-semibold text-gold-text hover:bg-surface-hover">
+            {module.action}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden />
+          </Link>
+        </nav>
+        <details className="group min-w-0 grow sm:ml-auto sm:grow-0 sm:max-w-sm">
+          <summary className={shortcut + ' cursor-pointer list-none [&::-webkit-details-marker]:hidden'}>
+            <BookOpen className="h-4 w-4" aria-hidden />Fonti e criteri
+          </summary>
+          <p className="px-3 pb-2 text-2xs leading-relaxed text-text-secondary">{module.source}. Apri il dettaglio per verificare il documento o il movimento collegato. «n/d» indica un dato da verificare.</p>
+        </details>
+      </div>
+    </div>
+  )
 }

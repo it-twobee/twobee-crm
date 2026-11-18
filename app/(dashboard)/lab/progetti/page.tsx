@@ -1,3 +1,4 @@
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import { LabRecordScope } from '@/components/lab/LabJourney'
 import LabSectionGuide from '@/components/lab/LabSectionGuide'
 import { LabReturnFields } from '@/components/lab/LabJourney'
@@ -7,7 +8,7 @@ import { type Installment, type RevenueStream, type Coverage } from '@/lib/reven
 import { projectDeal, type SubItem } from '@/lib/subcontracts'
 import { eur2 } from '@/lib/money'
 import Link from '@/components/lab/LabLink'
-import { ChevronLeft, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 export const revalidate = 0
 
@@ -72,20 +73,11 @@ export default async function ProgettiLabPage({ searchParams }: { searchParams: 
   )
 
   return (
-    <div className="min-h-full pb-8">
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-5xl mx-auto px-3 sm:px-4 py-1.5 flex items-center gap-2">
-          <Link href="/lab" aria-label="Torna al Laboratorio" className="flex items-center justify-center w-11 h-11 rounded-xl border border-border text-text-secondary hover:bg-surface-hover press">
-            <ChevronLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-base font-semibold text-text-primary leading-tight">Progetti</h1>
-            <p className="text-2xs text-text-tertiary leading-tight">Laboratorio · sola lettura · IVA esclusa</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-3 sm:px-4 pt-3 space-y-3">
+    <div className="mx-auto min-h-full min-w-0 max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+      <LabPageHeader section="progetti" title="Progetti">
+        <p className="text-sm text-text-secondary">Accordi e costi esterni per progetto · IVA esclusa</p>
+      </LabPageHeader>
+      <div className="space-y-4">
         <LabSectionGuide section="progetti" />
         <form className="flex gap-2" action="/lab/progetti"><LabReturnFields />
           <input name="q" defaultValue={searchParams.q ?? ''} placeholder="Cerca progetto o cliente"

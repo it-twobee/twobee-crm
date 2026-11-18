@@ -1,3 +1,5 @@
+import { labViewGroup, labViewItem } from '@/components/lab/labViewStyles'
+import LabPageHeader from '@/components/lab/LabPageHeader'
 import LabBankMetrics from '@/components/lab/LabBankMetrics'
 import LabBankHero from '@/components/lab/LabBankHero'
 import { isRetiredBankPocket } from '@/lib/bank-presentation'
@@ -53,13 +55,12 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
     && (!connections || filter === 'tutti' || (filter === 'presenti' ? !!references.get(tx.id)?.links.length : !references.get(tx.id)?.links.length && !references.get(tx.id)?.issues.length)))
 
   return (
-    <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-5 sm:p-6 space-y-5">
-      <header>
-        <h1 className="text-xl font-semibold text-text-primary">Banca</h1>
+    <div className="min-h-full min-w-0 break-words max-w-7xl mx-auto px-4 py-4 sm:px-6 space-y-4">
+      <LabPageHeader section="banca" title="Banca" actions={<LabReconcileButton label="Collega banca e fatture" />}>
         <p className="text-sm text-text-secondary">Effettivo consolidato: solo entrate e uscite di origine banca. Le fatture spiegano i movimenti, non li sostituiscono.</p>
         <p className="text-2xs text-text-tertiary mt-1">Movimenti da estratto · importi lordi · dati osservati fino al {today} · in verifica</p>
-      </header>
-      <div className="flex flex-wrap gap-2"><LabReconcileButton label="Collega banca e fatture" /><Link href="/lab/fonti" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text">Verifica estratto</Link><Link href="/lab/raccordi" className="inline-flex min-h-11 items-center px-3 text-sm text-gold-text underline">Controlla tutti i movimenti</Link></div>
+      </LabPageHeader>
+      <div className="flex flex-wrap gap-2"><Link href="/lab/fonti" className="inline-flex min-h-11 items-center rounded-xl border border-border-interactive px-3 text-sm text-gold-text">Verifica estratto</Link><Link href="/lab/raccordi" className="inline-flex min-h-11 items-center px-3 text-sm text-gold-text underline">Controlla tutti i movimenti</Link></div>
       <LabBankPeriodPicker key={period.mode + period.from + period.to} period={period} month={month} today={today} parameters={{ q: query, riferimenti: filter, documenti: documentFilter, verso: direction, tipo: kind, vista: view, conto: selected ?? 'tutti' }} />
       {!data.ok ? <p role="alert" className="rounded-xl p-4 bg-warning-dim text-warning text-sm">{data.message}</p> : <>
         <nav id="sintesi" aria-label="Filtra conto" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -68,7 +69,7 @@ export default async function LabBankPage({ searchParams }: { searchParams: { m?
         </nav>
         <LabBankMetrics accounts={visibleAccounts.filter(account => !selected || account.id === selected)} txs={data.txs} period={period} today={today} connections={connections} />
         {heroAccount && <LabBankHero key={heroAccount.id} account={heroAccount} txs={data.txs} month={month} today={today} period={period} />}
-        <nav aria-label="Vista banca" className="flex flex-wrap gap-2 border-b border-border pb-2">{[['movimenti', 'Movimenti'], ['analisi', 'Analisi'], ['controlli', 'Controlli e fonti']].map(([key, label]) => <Link key={key} href={change({ vista: key })} aria-current={view === key ? 'page' : undefined} className={`inline-flex min-h-11 items-center rounded-xl px-4 text-sm ${view === key ? 'bg-surface-active font-semibold text-text-primary' : 'text-gold-text'}`}>{label}</Link>)}</nav>
+        <nav aria-label="Vista banca" className={labViewGroup}>{[['movimenti', 'Movimenti'], ['analisi', 'Analisi'], ['controlli', 'Controlli e fonti']].map(([key, label]) => <Link key={key} href={change({ vista: key })} aria-current={view === key ? 'page' : undefined} className={labViewItem}>{label}</Link>)}</nav>
         {searchParams.movimento && !data.txs.some(tx => tx.id === searchParams.movimento && tx.source === 'banca' && tx.booked_on >= period.from && tx.booked_on <= period.to && tx.booked_on <= today && (!selected || tx.account_id === selected)) && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Il movimento richiesto non è presente tra i movimenti di banca del periodo e conto selezionati. Non viene mostrato un movimento sostitutivo.</p>}
         {searchParams.giorno && !day && <p role="alert" className="rounded-xl bg-warning-dim p-3 text-sm text-warning">Giorno non valido per questo periodo: nessun filtro giornaliero applicato.</p>}
         <form method="get" action="/lab/banca" className="rounded-2xl border border-border bg-surface p-4"><LabReturnFields />

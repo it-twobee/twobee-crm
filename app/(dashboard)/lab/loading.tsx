@@ -1,7 +1,13 @@
 export default function LabLoading() {
-  return <div role="status" aria-live="polite" aria-busy="true" className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:px-6">
-    <p className="text-sm font-medium text-text-primary">Apertura della sezione e lettura delle fonti…</p>
-    <p className="text-2xs text-text-secondary">I valori compariranno con i rispettivi riscontri.</p>
-    <div aria-hidden="true" className="grid gap-3 sm:grid-cols-3">{[1, 2, 3].map(n => <div key={n} className="h-24 rounded-2xl border border-border bg-surface motion-safe:animate-pulse" />)}</div>
-  </div>
+  return (
+    <div role="status" aria-busy="true" className="mx-auto max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+      <div className="flex min-h-24 items-center gap-3 rounded-2xl border border-border bg-surface p-4">
+        <span aria-hidden className="h-10 w-10 shrink-0 rounded-xl bg-gold-dim motion-safe:animate-pulse" />
+        <p className="text-sm font-medium text-text-primary">Caricamento della sezione…</p>
+      </div>
+      <div aria-hidden className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[1, 2, 3, 4].map(n => <div key={n} className="h-20 rounded-xl border border-border bg-surface motion-safe:animate-pulse" />)}
+      </div>
+    </div>
+  )
 }
