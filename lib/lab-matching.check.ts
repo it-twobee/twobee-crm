@@ -43,6 +43,8 @@ assert.equal(source([tx], { allocations: [allocation] }).movements[0].available,
 assert.equal(source([tx], { allocations: [allocation], legacy: [{ ...allocation, amount: 50 }] }).movements[0].available, null)
 assert.equal(source([{ ...tx, payslip_id: 's' }], { allocations: [allocation] }).movements[0].available, null)
 assert.equal(source([{ ...tx, kind: 'giroconto' }]).movements[0].available, null)
+assert.equal(source([{ ...tx, kind: 'commissione', amount: -1.5 }]).movements[0].available, null)
+assert.match(source([{ ...tx, kind: 'commissione', amount: -1.5 }]).movements[0].why ?? '', /Commissione bancaria/)
 assert.equal(source([{ ...tx, source: 'manuale' }]).movements.length, 0)
 assert.equal(source([{ ...tx, booked_on: '2026-11-17' }]).movements.length, 0)
 const before = JSON.stringify({ tx, docs, refs }); source(); assert.equal(JSON.stringify({ tx, docs, refs }), before)

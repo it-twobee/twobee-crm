@@ -20,7 +20,7 @@ export function bankReviewRows(txs: LabBankTx[], accounts: LabBankAccount[], doc
       const doc = documents.find(d => d.id === l.invoiceId)
       if (doc && t.counterparty && counterpartyMatchStrength(doc.counterpartyName, `${t.counterparty} ${t.description}`) < .45) why.push(`Controparte bancaria diversa o non riconosciuta rispetto alla fattura ${doc.number}: verifica il beneficiario.`)
     }
-    const category: BankReviewRow['category'] = t.hidden_reason ? 'esclusi' : transferred ? 'trasferimenti' : tax ? 'fisco' : resource ? 'risorse' : refunded ? 'rimborsi' : t.no_match_needed ? 'esclusi' : 'fatture'
+    const category: BankReviewRow['category'] = t.hidden_reason || t.kind === 'commissione' ? 'esclusi' : transferred ? 'trasferimenti' : tax ? 'fisco' : resource ? 'risorse' : refunded ? 'rimborsi' : t.no_match_needed ? 'esclusi' : 'fatture'
     const known = checked?.attributed, residual = checked?.unassigned
     const reserved = !!(t.revenue_line_id || t.cost_line_id || parts.length || refs.salaryLinks.some(l => l.tx_id === t.id))
     let status: BankReviewRow['status'] = why.length || !account || !checked ? 'da_verificare' : checked.links.length && known != null && residual === 0 ? 'collegato' : checked.links.length && known != null && known > 0 ? 'parziale' : reserved ? 'da_verificare' : category !== 'fatture' ? 'altra_causale' : 'da_raccordare'
@@ -28,6 +28,7 @@ export function bankReviewRows(txs: LabBankTx[], accounts: LabBankAccount[], doc
     if (!account || !checked) why.push('Fonti del conto o dei raccordi non disponibili.')
     if (reserved && !checked?.links.length) why.push('Esistono quote o riferimenti economici: controlla le prove prima di aggiungere una fattura.')
     if (parts.length > 1 || refs.salaryLinks.filter(l => l.tx_id === t.id).length > 1) why.push('Movimento con più destinazioni: conserva la distinta e verifica ogni quota senza duplicare il totale.')
+    if (t.kind === 'commissione') why.push('Commissione bancaria: consulta il movimento nell’estratto.')
     if (t.hidden_reason) why.push(`Nascosto operativo: ${t.hidden_reason}. Rimane nella cassa.`)
     if (t.no_match_needed) why.push('Classificato senza aggancio richiesto; non equivale a fattura pagata.')
     if (category === 'rimborsi') why.push('Verifica rimborso, nota di credito o cashback: non è automaticamente un ricavo da fatturare.')
