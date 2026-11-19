@@ -2,7 +2,7 @@
 
 ## Raccordi su addebiti con righe costo, e lettura AI senza parser nativo — 19 novembre 2026
 
-**Blocco SQL, non applicativo.** Gli addebiti Meta di luglio-agosto hanno `cost_line_id` e quote (`payment_allocations`/`bank_tx_lines`) su righe costo senza fattura propria. L'app poteva proporli (provato, 19 proposte), ma `save_bank_invoice_reconciliation` (migration 281, righe 108-128) rifiuta ogni movimento con questi riferimenti: «Movimento già impegnato o non utilizzabile». Sbloccarli richiede una **nuova migration** che riscriva la funzione (guardando prima la produzione con `pg_get_functiondef`), non una modifica al solo codice: la relaxation lato app è stata ritirata per non mostrare proposte non salvabili.
+**Righe costo (migration 283).** Gli addebiti Meta di luglio-agosto hanno `cost_line_id` e quote su righe costo senza fattura propria. La 281 li rifiutava; la 283 li accetta nel raccordo documentale (`costLineOnlyMovement`, `lib/lab-matching.ts`, scritta anche nella RPC: le due devono dire la stessa cosa). Restano bloccati ricavi, compensi, F24, cedolini, fatture risorse e righe che puntano già a una fattura.
 
 **Lettura AI.** `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello. Scansioni senza testo restano da compilare singolarmente.
 
