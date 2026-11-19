@@ -32,20 +32,6 @@ const tx = { id: 't', account_id: 'a', amount: 100, source: 'banca', booked_on: 
 const docs = toLabInvoices([{ id: 'i', direction: 'emessa', sign: 1, number: '1', issued_on: '2026-09-01', total: 300, taxable: 300, vat_amount: 0, withholding: 0, currency: 'EUR' }])
 const refs: LabConnectionData = { revenue: [], costs: [], months: [], allocations: [], legacy: [], slips: [], hrInvoices: [], pdfs: [], salaryLinks: [], people: [], f24: [], f24Lines: [], settlements: [], payouts: [] }
 const source = (txs = [tx], more = {}) => { const all = { ...refs, ...more }; return matchingSources([account], txs, docs, all, invoiceBankReconciliation(docs, txs, [account], all, '2026-11-16'), '2026-11-16') }
-// Riga costo diretta sola: l'addebito resta raccordabile, senza toccare la riga.
-const costTx = { ...tx, kind: 'incasso', amount: -100, cost_line_id: 'c1' } as LabBankTx
-const free = source([costTx], { costs: [{ id: 'c1', invoice_id: null }] }).movements[0]
-assert.equal(free.why, null); assert.equal(free.available, 100)
-assert.ok(source([costTx], { costs: [{ id: 'c1', invoice_id: 'altra' }] }).movements[0].why, 'riga con fattura propria resta bloccata')
-assert.ok(source([costTx], { costs: [] }).movements[0].why, 'riga sconosciuta resta bloccata')
-const onCost = source([costTx], { costs: [{ id: 'c1', invoice_id: null }], allocations: [{ tx_id: 't', cost_line_id: 'c1', amount: 100 }] }).movements[0]
-assert.equal(onCost.why, null, 'quote solo su righe costo pulite non bloccano il raccordo'); assert.equal(onCost.available, 100)
-const legacyOnCost = source([costTx], { costs: [{ id: 'c1', invoice_id: null }], legacy: [{ tx_id: 't', cost_line_id: 'c1', amount: 100 }] }).movements[0]
-assert.equal(legacyOnCost.available, 100)
-assert.ok(source([costTx], { costs: [{ id: 'c1', invoice_id: null }], allocations: [{ tx_id: 't', cost_line_id: 'c1', payout_id: 'p', amount: 100 }] }).movements[0].why, 'quota su compenso resta bloccata')
-assert.ok(source([costTx], { costs: [{ id: 'c1', invoice_id: null }], allocations: [{ tx_id: 't', revenue_line_id: 'r1', amount: 100 }] }).movements[0].why, 'quota su ricavo resta bloccata')
-assert.ok(source([costTx], { costs: [{ id: 'c1', invoice_id: null }, { id: 'c2', invoice_id: 'x' }], allocations: [{ tx_id: 't', cost_line_id: 'c2', amount: 100 }] }).movements[0].why, 'riga con fattura propria resta bloccata')
-assert.ok(source([{ ...costTx, payslip_id: 'p' } as LabBankTx], { costs: [{ id: 'c1', invoice_id: null }] }).movements[0].why, 'cedolino resta bloccato')
 assert.equal(source().movements[0].available, 100)
 assert.equal(source().invoices[0].remaining, 300)
 const partial = source([{ ...tx, invoice_id: 'i' }, { ...tx, id: 'second', amount: 200 }])

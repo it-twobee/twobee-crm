@@ -7,7 +7,7 @@ import { loadLabConnections } from '@/lib/lab-connections-load'
 import { loadLabInvoiceRecords } from '@/lib/lab-invoice-records-load'
 import { loadLabReconciliationStore } from '@/lib/lab-reconciliations-store'
 import { invoiceBankReconciliation } from '@/lib/lab-invoice-bank'
-import { costLineOnlyMovement, matchingSources } from '@/lib/lab-matching'
+import { matchingSources } from '@/lib/lab-matching'
 import type { ReconciliationData } from '@/lib/lab-reconciliation-types'
 export async function loadLabReconciliations(today: string, editId?: string, adoptMovement?: string, focusMovement?: string): Promise<ReconciliationData> {
   await requireLabAdmin()
@@ -27,7 +27,7 @@ export async function loadLabReconciliations(today: string, editId?: string, ado
   const complexMovements = new Set<string>()
   for (const movement of sources.movements) {
     const tx = txs.find(t => t.id === movement.id)!
-    if (tx.kind === 'finanziamento' || tx.revenue_line_id || (tx.cost_line_id && !costLineOnlyMovement(tx, refs)) || tx.payslip_id || tx.hr_invoice_id || (!costLineOnlyMovement(tx, refs) && (refs.allocations.some(a => a.tx_id === tx.id) || refs.legacy.some(a => a.tx_id === tx.id))) || refs.salaryLinks.some(a => a.tx_id === tx.id)) {
+    if (tx.kind === 'finanziamento' || tx.revenue_line_id || tx.cost_line_id || tx.payslip_id || tx.hr_invoice_id || refs.allocations.some(a => a.tx_id === tx.id) || refs.legacy.some(a => a.tx_id === tx.id) || refs.salaryLinks.some(a => a.tx_id === tx.id)) {
       complexMovements.add(tx.id)
       movement.available = null; movement.why = 'Ha riferimenti economici o risorse: verifica prima i collegamenti esistenti.'
     }

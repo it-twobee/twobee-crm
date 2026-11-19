@@ -1,8 +1,10 @@
 # Laboratorio (`/lab`, §474-§500)
 
-## Raccordi: addebito con la sola riga costo, e lettura AI senza parser nativo — 19 novembre 2026
+## Raccordi su addebiti con righe costo, e lettura AI senza parser nativo — 19 novembre 2026
 
-Un addebito i cui **soli** riferimenti economici sono righe costo senza fattura propria (campo diretto e/o quote `payment_allocations`/`bank_tx_lines`, nessun ricavo, compenso, F24, risorsa o fattura diretta) non è più «già impegnato»: il raccordo documentale non tocca riga, spunte né `paid_on` (`costLineOnlyMovement`, `lib/lab-matching.ts`). Con quote, fattura diretta o riga che punta a un'altra fattura resta bloccato. La lettura AI di `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello; scansioni senza testo restano da compilare singolarmente.
+**Blocco SQL, non applicativo.** Gli addebiti Meta di luglio-agosto hanno `cost_line_id` e quote (`payment_allocations`/`bank_tx_lines`) su righe costo senza fattura propria. L'app poteva proporli (provato, 19 proposte), ma `save_bank_invoice_reconciliation` (migration 281, righe 108-128) rifiuta ogni movimento con questi riferimenti: «Movimento già impegnato o non utilizzabile». Sbloccarli richiede una **nuova migration** che riscriva la funzione (guardando prima la produzione con `pg_get_functiondef`), non una modifica al solo codice: la relaxation lato app è stata ritirata per non mostrare proposte non salvabili.
+
+**Lettura AI.** `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello. Scansioni senza testo restano da compilare singolarmente.
 
 ## Acquisizione AI e prestazioni occasionali — 19 novembre 2026
 
