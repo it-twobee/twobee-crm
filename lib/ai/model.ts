@@ -27,3 +27,7 @@
  * alto ed è provato. Su `qwen/qwen3.8-27b` non si torna senza alzare il piano.
  */
 export const GROQ_MODEL = process.env.GROQ_MODEL ?? 'qwen/qwen3.6-27b'
+/** OCR opzionale: il modello testuale non viene usato per leggere immagini. */
+export const GROQ_DOCUMENT_VISION_MODEL = process.env.GROQ_DOCUMENT_VISION_MODEL ?? null
+/** Lettura documentale verificata separatamente dal modello dell’assistente. */
+export const GROQ_DOCUMENT_MODEL = process.env.GROQ_DOCUMENT_MODEL ?? 'openai/gpt-oss-120b'

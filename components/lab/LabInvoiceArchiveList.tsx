@@ -19,8 +19,9 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState('')
   const [message, setMessage] = useState('')
+  const [confirmed, setConfirmed] = useState<Record<string, boolean>>({})
   const selectionCount = Object.keys(selection).length
-  const ready = review?.filter(row => row.draft && !row.invoiceId) ?? []
+  const ready = review?.filter(row => row.draft && !row.invoiceId && confirmed[row.id]) ?? []
   const href = (next: number, id?: string) => `/lab/fonti?${new URLSearchParams({
     ...(query ? { archivio: query } : {}), ...(next ? { pagina: String(next) } : {}), ...(id ? { pdf: id } : {}),
   })}#${id ? 'acquisisci-pdf' : 'archivio-documenti'}`
@@ -48,6 +49,7 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
   }
 
   async function prepare() {
+    setConfirmed({})
     setMessage('')
     setBusy(true)
     const list = Object.values(selection)
@@ -115,7 +117,7 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="font-semibold text-text-primary">Acquisizione in blocco</h3>
-              <p className="text-2xs text-text-secondary">{ready.length} da confermare · {review.filter(row => row.invoiceId).length} nel registro · {review.filter(row => !row.draft).length} da controllare</p>
+              <p className="text-2xs text-text-secondary">{ready.length} verificati per acquisizione · {review.filter(row => row.invoiceId).length} nel registro · {review.filter(row => !row.draft).length} da controllare. Apri i layout non riconosciuti singolarmente per usare l’AI.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={secondary} onClick={() => setReview(null)} disabled={busy}>Torna alla selezione</button>
@@ -124,6 +126,7 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
           </div>
           <ul className="divide-y divide-border">
             {review.map(row => <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2">
+              {row.draft && !row.invoiceId && <label className="inline-flex min-h-11 items-center gap-2 pr-3 text-2xs text-text-primary"><input type="checkbox" checked={!!confirmed[row.id]} disabled={busy} onChange={event => setConfirmed(current => ({ ...current, [row.id]: event.target.checked }))} />Verificato sul PDF</label>}
               <div className="min-w-0 flex-1 basis-60">
                 <p className="break-words text-sm font-semibold text-text-primary">{row.draft ? `${row.draft.supplier} · ${row.draft.number}` : row.filename}</p>
                 {row.draft && <p className="text-2xs text-text-secondary">{row.draft.date} · {row.draft.vatId} · {row.draft.total} {row.draft.currency} · Imponibile {row.draft.net} · IVA {row.draft.vat}</p>}

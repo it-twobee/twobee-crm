@@ -1,10 +1,12 @@
 export const archiveUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export type ArchiveInvoiceDraft = {
   number: string; supplier: string; vatId: string; date: string; due: string
-  currency: string; net: string; vat: string; total: string; reference: string; kind: 'TD01' | 'TD04' | 'TD05'
+  currency: string; net: string; vat: string; total: string; reference: string; kind: 'TD01' | 'TD04' | 'TD05' | 'RICEVUTA_OCCASIONALE'
+  taxCode?: string; withholding?: string; stamp?: string; payable?: string
 }
 export const emptyArchiveInvoice: ArchiveInvoiceDraft = {
   number: '', supplier: '', vatId: '', date: '', due: '', currency: '', net: '', vat: '', total: '', reference: '', kind: 'TD01',
+  taxCode: '', withholding: '', stamp: '', payable: '',
 }
 
 const months: Record<string, string> = {
@@ -80,6 +82,7 @@ export function suggestArchivedInvoice(raw: string) {
       currency: total ? 'EUR' : '', total, net, vat: total && net ? (Number(total) - Number(net)).toFixed(2) : '',
     })
   }
+  if (/prestazion[ei]\s+(?:di\s+lavoro\s+)?occasional[ei]|lavoro autonomo occasionale/i.test(text)) draft.kind = 'RICEVUTA_OCCASIONALE'
   return { draft, blocked: null }
 }
 
@@ -95,8 +98,19 @@ export function parseArchiveInvoice(input: ArchiveInvoiceDraft) {
   if (!number || number.length > 120 || !supplier || supplier.length > 250) throw Error('Controlla numero e fornitore.')
   if (vatId && !/^[A-Z0-9]{5,30}$/.test(vatId)) throw Error('Controlla l’identificativo fiscale del fornitore.')
   if (!date(input.date) || input.due && !date(input.due) || !/^[A-Z]{3}$/.test(currency)) throw Error('Controlla date e valuta del documento.')
-  if (!['TD01', 'TD04', 'TD05'].includes(input.kind) || reference.length > 120 || /[\r\n]/.test(reference)) throw Error('Controlla tipo e riferimento del documento.')
+  if (!['TD01', 'TD04', 'TD05', 'RICEVUTA_OCCASIONALE'].includes(input.kind) || reference.length > 120 || /[\r\n]/.test(reference)) throw Error('Controlla tipo e riferimento del documento.')
+  const taxCode = (input.taxCode ?? '').replace(/\s+/g, '').toUpperCase()
+  if (taxCode && !/^[A-Z0-9]{11,16}$/.test(taxCode)) throw Error('Controlla il codice fiscale del prestatore.')
+  const occasional = input.kind === 'RICEVUTA_OCCASIONALE'
+  if (occasional && !taxCode) throw Error('La ricevuta occasionale richiede il codice fiscale del prestatore.')
+  if (occasional && [input.withholding, input.stamp, input.payable].some(v => v == null || v.trim() === '')) throw Error('Verifica ritenuta, bollo incluso nel totale e netto da pagare sul documento, anche se zero.')
   const net = amount(input.net), vat = amount(input.vat), total = amount(input.total)
-  if (Math.abs(Math.round((net + vat - total) * 100)) > 1) throw Error('Imponibile e IVA devono quadrare con il totale del documento.')
-  return { number, supplier, vatId, currency, reference, net, vat, total, date: input.date, due: input.due || null, kind: input.kind }
+  const withholding = input.withholding?.trim() ? amount(input.withholding) : 0
+  const stamp = input.stamp?.trim() ? amount(input.stamp) : 0
+  if (occasional && vat !== 0) throw Error('La ricevuta occasionale con IVA richiede una verifica del tipo di documento.')
+  if (Math.abs(Math.round((net + vat + stamp - total) * 100)) > 1) throw Error('Compenso/imponibile, IVA e bollo addebitato devono quadrare con il totale lordo.')
+  if (withholding > total) throw Error('La ritenuta non può superare il totale lordo.')
+  const payable = input.payable?.trim() ? amount(input.payable) : Math.round((total - withholding) * 100) / 100
+  if (Math.abs(Math.round((total - withholding - payable) * 100)) > 1) throw Error('Totale lordo meno ritenuta deve coincidere con il netto da pagare.')
+  return { number, supplier, vatId, taxCode, currency, reference, net, vat, total, withholding, stamp, payable, date: input.date, due: input.due || null, kind: input.kind }
 }

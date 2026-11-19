@@ -8,9 +8,10 @@ export async function readArchivedInvoiceDraft(id: string, signal?: AbortSignal)
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(await response.arrayBuffer()), isEvalSupported: false }).promise
   try {
     const pages = []
-    for (let page = 1; page <= Math.min(pdf.numPages, 5); page++) {
+    if (pdf.numPages > 20) throw Error('Il PDF supera 20 pagine: separa i documenti prima di acquisirli.')
+    for (let page = 1; page <= pdf.numPages; page++) {
       const content = await (await pdf.getPage(page)).getTextContent()
-      pages.push(content.items.map(item => 'str' in item ? item.str : '').join(' '))
+      pages.push(content.items.map(item => 'str' in item ? item.str + ('hasEOL' in item && item.hasEOL ? '\n' : ' ') : '').join(''))
     }
     return suggestArchivedInvoice(pages.join(' '))
   } finally { await pdf.destroy() }

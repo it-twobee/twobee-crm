@@ -26,8 +26,8 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
 
     const admin = createActorClient(actor)
     const supplierVat = invoice.vatId.replace(/^IT(?=\d{11}$)/, '') || null
-    const key = invoiceKey({ supplier: { name: invoice.supplier, vat: supplierVat, taxCode: null }, docType: invoice.kind, number: invoice.number, issuedOn: invoice.date })
-    const columns = 'id,direction,taxable,vat_amount,total,currency,pdf_path,counterparty_name'
+    const key = invoiceKey({ supplier: { name: invoice.supplier, vat: supplierVat, taxCode: invoice.taxCode || null }, docType: invoice.kind, number: invoice.number, issuedOn: invoice.date })
+    const columns = 'id,direction,taxable,vat_amount,total,withholding,stamp,currency,pdf_path,counterparty_name,counterparty_tax'
     const [byArchive, byIdentity, byNumber] = await Promise.all([
       admin.from('invoices').select(columns).eq('pdf_path', file.storage_key).limit(2),
       admin.from('invoices').select(columns).eq('doc_key', key).maybeSingle(),
@@ -47,7 +47,9 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
 
     let id = existing?.id
     if (existing && (existing.direction !== 'ricevuta' || existing.currency !== invoice.currency
-      || Number(existing.taxable) !== invoice.net || Number(existing.vat_amount) !== invoice.vat || Number(existing.total) !== invoice.total)) {
+      || Number(existing.taxable) !== invoice.net || Number(existing.vat_amount) !== invoice.vat || Number(existing.total) !== invoice.total
+      || Number(existing.withholding) !== invoice.withholding || Number(existing.stamp) !== invoice.stamp
+      || (invoice.taxCode && existing.counterparty_tax && existing.counterparty_tax !== invoice.taxCode))) {
       throw Error('La fattura è già nel registro con dati diversi. Verifica prima di acquisire il PDF.')
     }
     if (existing && !existing.pdf_path) {
@@ -59,11 +61,11 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
       // L’ID del PDF rende atomica l’identità della nuova fattura anche fra richieste concorrenti.
       const { data, error } = await admin.from('invoices').insert({
         id: archiveId, direction: 'ricevuta', doc_type: invoice.kind, number: invoice.number, issued_on: invoice.date,
-        counterparty_name: invoice.supplier, counterparty_vat: supplierVat, currency: invoice.currency,
-        taxable: invoice.net, vat_amount: invoice.vat, total: invoice.total, sign: invoice.kind === 'TD04' ? -1 : 1,
+        counterparty_name: invoice.supplier, counterparty_vat: supplierVat, counterparty_tax: invoice.taxCode || null, currency: invoice.currency,
+        taxable: invoice.net, vat_amount: invoice.vat, total: invoice.total, withholding: invoice.withholding, stamp: invoice.stamp, sign: invoice.kind === 'TD04' ? -1 : 1,
         due_date: invoice.due, total_derived: false, pdf_path: file.storage_key,
         source_file: file.filename, doc_key: key, created_by: actor,
-        notes: invoice.reference ? `Riferimento bancario PDF: ${invoice.reference}` : null,
+        notes: [invoice.kind === 'RICEVUTA_OCCASIONALE' ? 'Ricevuta per prestazione occasionale; documento non SdI. Ritenuta separata dal pagamento al prestatore, non prova di versamento F24.' : '', invoice.reference ? `Riferimento PDF: ${invoice.reference}` : ''].filter(Boolean).join('\n') || null,
       }).select('id').single()
       if (error) {
         if (error.code === '23505') throw Error('Il PDF o la fattura sono già stati acquisiti. Ricarica l’archivio.')

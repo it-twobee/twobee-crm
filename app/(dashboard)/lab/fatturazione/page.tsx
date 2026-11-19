@@ -110,7 +110,7 @@ export default async function LabInvoicesPage({ searchParams }: {
           const notes = (i.rectifiedBy ?? []).map(id => data.invoices.find(x => x.id === id)).filter(x => x != null)
           const parent = i.rectifiesId ? data.invoices.find(x => x.id === i.rectifiesId) : undefined
           const candidates = suggestions?.proposals.get(i.id) ?? []
-          const kind = isCreditNote(i.docType) ? 'Nota di credito' : isDebitNote(i.docType) ? 'Nota di debito' : 'Fattura'
+          const kind = i.docType === 'RICEVUTA_OCCASIONALE' ? 'Ricevuta occasionale' : isCreditNote(i.docType) ? 'Nota di credito' : isDebitNote(i.docType) ? 'Nota di debito' : 'Fattura'
           return <LabRecordScope key={i.id} anchor={`fattura-${i.id}`}><li id={`fattura-${i.id}`} className="bg-surface border border-border rounded-2xl p-4 space-y-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:gap-3">
               <div className="min-w-0"><h2 className="text-sm font-semibold text-text-primary break-words">{i.counterpartyName}</h2><p className="text-2xs text-text-secondary">{kind} {i.number} · {i.issuedOn}</p></div>
