@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { emptyArchiveInvoice, parseArchiveInvoice, suggestArchivedInvoice } from '@/lib/archived-invoice'
 
 const regus = suggestArchivedInvoice(
@@ -32,4 +33,6 @@ assert.equal(anthropic.net, 105.20)
 assert.equal(anthropic.vat, 23.14)
 assert.equal(anthropic.total, 128.34)
 assert.equal(anthropic.vatId, '', 'Non attribuisce al fornitore la partita IVA riportata sotto Bill to')
+const archiveAction = readFileSync('app/actions/lab-invoice-archive.ts', 'utf8')
+assert.doesNotMatch(archiveAction, /\bfrom_sdi\s*:/, 'Il registro genera from_sdi dal documento XML')
 console.log('Tutti i controlli passano')

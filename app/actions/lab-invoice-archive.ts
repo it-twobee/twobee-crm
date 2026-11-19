@@ -61,11 +61,16 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
         id: archiveId, direction: 'ricevuta', doc_type: invoice.kind, number: invoice.number, issued_on: invoice.date,
         counterparty_name: invoice.supplier, counterparty_vat: supplierVat, currency: invoice.currency,
         taxable: invoice.net, vat_amount: invoice.vat, total: invoice.total, sign: invoice.kind === 'TD04' ? -1 : 1,
-        due_date: invoice.due, total_derived: false, from_sdi: false, pdf_path: file.storage_key,
+        due_date: invoice.due, total_derived: false, pdf_path: file.storage_key,
         source_file: file.filename, doc_key: key, created_by: actor,
         notes: invoice.reference ? `Riferimento bancario PDF: ${invoice.reference}` : null,
       }).select('id').single()
-      if (error) throw Error(error.code === '23505' ? 'Il PDF o la fattura sono già stati acquisiti. Ricarica l’archivio.' : 'Registrazione non completata.')
+      if (error) {
+        if (error.code === '23505') throw Error('Il PDF o la fattura sono già stati acquisiti. Ricarica l’archivio.')
+        const code = /^[A-Z0-9]{5,8}$/.test(error.code) ? error.code : 'DB'
+        console.error('Acquisizione fattura da archivio: inserimento rifiutato', { code })
+        throw Error(`Il registro ha rifiutato l’acquisizione (codice ${code}).`)
+      }
       id = data.id
     }
     for (const path of ['/lab/fonti', '/lab/fatturazione', '/lab/raccordi', '/lab/verifiche', '/economics/fatturazione']) revalidatePath(path)
