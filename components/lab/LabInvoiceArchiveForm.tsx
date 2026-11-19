@@ -8,11 +8,11 @@ import { emptyArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-in
 
 const control = 'mt-1 block min-h-11 w-full min-w-0 rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary'
 const fields = [
-  { key: 'supplier', label: 'Fornitore' }, { key: 'vatId', label: 'Identificativo fiscale' },
-  { key: 'number', label: 'Numero fattura' }, { key: 'date', label: 'Data di emissione', type: 'date' },
+  { key: 'supplier', label: 'Fornitore' }, { key: 'vatId', label: 'Identificativo fiscale del fornitore', optional: true },
+  { key: 'number', label: 'Numero fattura' }, { key: 'date', label: 'Data del documento', type: 'date' },
   { key: 'due', label: 'Scadenza', type: 'date', optional: true }, { key: 'currency', label: 'Valuta' },
   { key: 'net', label: 'Imponibile', decimal: true }, { key: 'vat', label: 'IVA addebitata', decimal: true },
-  { key: 'total', label: 'Totale documento', decimal: true }, { key: 'reference', label: 'Riferimento bancario nel PDF', optional: true },
+  { key: 'total', label: 'Totale documento', decimal: true }, { key: 'reference', label: 'Riferimento nel PDF', optional: true },
 ] as const
 
 export default function LabInvoiceArchiveForm({ id, filename }: { id: string; filename: string }) {
@@ -67,7 +67,8 @@ export default function LabInvoiceArchiveForm({ id, filename }: { id: string; fi
         catch { setResult({ ok: false, message: 'Risposta non disponibile. Puoi riprovare senza duplicare la fattura.' }) }
         finally { setPending(false) }
       }} className="space-y-3">
-        <p className="text-sm text-text-secondary">Controlla i dati proposti sul PDF e completa i campi mancanti.</p>
+        <p className="text-sm text-text-secondary">Controlla i dati proposti sul PDF e completa i campi mancanti.
+          {draft.supplier === 'Anthropic, PBC' && draft.reference && ' Per la ricevuta viene proposta la data indicata come pagamento quando manca la data di emissione.'}</p>
         <fieldset disabled={pending} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {fields.map(field => <label key={field.key} className="min-w-0 text-2xs text-text-secondary">
             {field.label}<input className={control} type={'type' in field ? field.type : 'text'}

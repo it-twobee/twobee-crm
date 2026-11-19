@@ -20,4 +20,16 @@ assert.ok(suggestArchivedInvoice('Meta Platforms Ireland Limited Operazione non 
 assert.throws(() => parseArchiveInvoice(emptyArchiveInvoice))
 assert.throws(() => parseArchiveInvoice({ ...meta.draft, date: '2026-02-30' }))
 assert.throws(() => parseArchiveInvoice({ ...meta.draft, total: '237.57' }))
+const anthropic = parseArchiveInvoice(suggestArchivedInvoice(
+  'Receipt Invoice number AK9RHRQA \x00 0001 Receipt number 2284 \x00 0335 \x00 3675 Date paid May 9, 2026 ' +
+  'Anthropic, PBC Bill to Two Bee HU VAT 11030281213 Total excluding tax €105.20 ' +
+  'VAT - Italy \x00 22% on €105.20 \x00 €23.14 Total €128.34 Amount paid €128.34',
+).draft)
+assert.equal(anthropic.number, 'AK9RHRQA-0001')
+assert.equal(anthropic.reference, '2284-0335-3675')
+assert.equal(anthropic.date, '2026-05-09')
+assert.equal(anthropic.net, 105.20)
+assert.equal(anthropic.vat, 23.14)
+assert.equal(anthropic.total, 128.34)
+assert.equal(anthropic.vatId, '', 'Non attribuisce al fornitore la partita IVA riportata sotto Bill to')
 console.log('Tutti i controlli passano')

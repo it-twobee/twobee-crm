@@ -47,6 +47,21 @@ export function suggestArchivedInvoice(raw: string) {
       draft.net = total
       draft.vat = '0'
     }
+  } else if (/Anthropic,? PBC/i.test(text)) {
+    const euroAfter = (label: string) => decimal(value(new RegExp(`\\b${label}\\s*€\\s*(${euroAmount.source})`, 'i')))
+    const total = euroAfter('Total')
+    const net = euroAfter('Total excluding tax') || euroAfter('Subtotal')
+    const tax = decimal(value(new RegExp(`VAT - .*?€\\s*(${euroAmount.source})\\s+Total\\s*€`, 'i')))
+    const date = (label: string) => localDate(value(new RegExp(`${label}\\s*:?[ ]*([a-z]+ \\d{1,2}, \\d{4})`, 'i')))
+    Object.assign(draft, {
+      supplier: 'Anthropic, PBC',
+      vatId: value(/VAT Registration EU VAT\s*[:\x00]\s*(IE[A-Z0-9]+)/i),
+      number: (text.match(/Invoice number\s*:?\s*([A-Z0-9]+)\s*[-\x00]\s*(\d+)\b/i)?.slice(1).join('-') ?? ''),
+      date: date('Date of issue') || date('Date paid'),
+      due: date('Date due'), currency: total ? 'EUR' : '', total, net,
+      vat: tax || (total && net && Number(total) === Number(net) ? '0' : ''),
+      reference: text.match(/Receipt number\s*:?\s*(\d{4})\s*[-\x00]\s*(\d{4})\s*[-\x00]\s*(\d{4})\b/i)?.slice(1).join('-') ?? '',
+    })
   } else if (/Canva Pty Ltd/i.test(text)) {
     const totals = text.match(new RegExp(`\\bTotal\\s+(${euroAmount.source})\\s+(${euroAmount.source})\\s+EUR\\s+(${euroAmount.source})`, 'i'))
     Object.assign(draft, {
@@ -77,7 +92,8 @@ export function parseArchiveInvoice(input: ArchiveInvoiceDraft) {
   }
   const number = input.number.trim(), supplier = input.supplier.trim(), vatId = input.vatId.replace(/\s+/g, '').toUpperCase()
   const currency = input.currency.trim().toUpperCase(), reference = input.reference.trim()
-  if (!number || number.length > 120 || !supplier || supplier.length > 250 || !/^[A-Z0-9]{5,30}$/.test(vatId)) throw Error('Controlla numero, fornitore e identificativo fiscale.')
+  if (!number || number.length > 120 || !supplier || supplier.length > 250) throw Error('Controlla numero e fornitore.')
+  if (vatId && !/^[A-Z0-9]{5,30}$/.test(vatId)) throw Error('Controlla l’identificativo fiscale del fornitore.')
   if (!date(input.date) || input.due && !date(input.due) || !/^[A-Z]{3}$/.test(currency)) throw Error('Controlla date e valuta del documento.')
   if (!['TD01', 'TD04', 'TD05'].includes(input.kind) || reference.length > 120 || /[\r\n]/.test(reference)) throw Error('Controlla tipo e riferimento del documento.')
   const net = amount(input.net), vat = amount(input.vat), total = amount(input.total)

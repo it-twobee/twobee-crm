@@ -17,7 +17,7 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
     if (!archiveUuid.test(archiveId)) throw Error('Documento non valido.')
     const invoice = parseArchiveInvoice(input)
     const companyVat = (await ownVat()).replace(/[^a-z0-9]/gi, '').toUpperCase().replace(/^IT/, '')
-    if (invoice.vatId.replace(/^IT/, '') === companyVat) throw Error('L’identificativo fiscale deve essere quello del fornitore.')
+    if (invoice.vatId && invoice.vatId.replace(/^IT/, '') === companyVat) throw Error('L’identificativo fiscale deve essere quello del fornitore.')
     const file = await readArchivedInvoicePdf(archiveId)
     if (!file) throw Error('PDF non disponibile nell’archivio.')
     const original = await getObject(file.storage_key, 'bytes=0-1023')
@@ -25,20 +25,27 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
     if (!signature.startsWith('%PDF-')) throw Error('L’originale non è un PDF leggibile.')
 
     const admin = createActorClient(actor)
-    const supplierVat = invoice.vatId.replace(/^IT(?=\d{11}$)/, '')
+    const supplierVat = invoice.vatId.replace(/^IT(?=\d{11}$)/, '') || null
     const key = invoiceKey({ supplier: { name: invoice.supplier, vat: supplierVat, taxCode: null }, docType: invoice.kind, number: invoice.number, issuedOn: invoice.date })
-    const columns = 'id,direction,taxable,vat_amount,total,currency,pdf_path'
-    const [byArchive, byIdentity] = await Promise.all([
+    const columns = 'id,direction,taxable,vat_amount,total,currency,pdf_path,counterparty_name'
+    const [byArchive, byIdentity, byNumber] = await Promise.all([
       admin.from('invoices').select(columns).eq('pdf_path', file.storage_key).limit(2),
       admin.from('invoices').select(columns).eq('doc_key', key).maybeSingle(),
+      admin.from('invoices').select(columns).eq('direction', 'ricevuta').eq('doc_type', invoice.kind)
+        .eq('number', invoice.number).eq('issued_on', invoice.date),
     ])
-    if (byArchive.error || byIdentity.error) throw Error('Verifica dei duplicati non disponibile.')
-    if (byArchive.data.length > 1 || byArchive.data[0] && byIdentity.data?.id !== byArchive.data[0].id) {
+    if (byArchive.error || byIdentity.error || byNumber.error) throw Error('Verifica dei duplicati non disponibile.')
+    const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const sameSupplier = byNumber.data.filter(row => normalizeName(row.counterparty_name) === normalizeName(invoice.supplier))
+    if (sameSupplier.length > 1 || byIdentity.data && sameSupplier.some(row => row.id !== byIdentity.data?.id)) {
+      throw Error('Nel registro risultano più fatture dello stesso fornitore con questo numero. Verifica i duplicati.')
+    }
+    const existing = byIdentity.data ?? sameSupplier[0]
+    if (byArchive.data.length > 1 || byArchive.data[0] && existing?.id !== byArchive.data[0].id) {
       throw Error('Questo PDF è già collegato a una fattura. Verifica numero, data e fornitore.')
     }
 
-    let id = byIdentity.data?.id
-    const existing = byIdentity.data
+    let id = existing?.id
     if (existing && (existing.direction !== 'ricevuta' || existing.currency !== invoice.currency
       || Number(existing.taxable) !== invoice.net || Number(existing.vat_amount) !== invoice.vat || Number(existing.total) !== invoice.total)) {
       throw Error('La fattura è già nel registro con dati diversi. Verifica prima di acquisire il PDF.')
