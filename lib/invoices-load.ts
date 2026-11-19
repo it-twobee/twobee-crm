@@ -8,7 +8,7 @@ import { withDueRule, withRectifications, type Invoice } from '@/lib/invoices'
 export const INVOICE_COLUMNS =
   'id, direction, doc_type, number, issued_on, counterparty_name, counterparty_vat, '
   + 'client_id, taxable, vat_amount, total, sign, due_date, paid_on, pdf_path, '
-  + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id, source_file'
+  + 'excluded_reason, warnings, sent_on, from_sdi, rectifies_id, source_file, notes'
 
 const n = (v: unknown) => Number(v ?? 0)
 

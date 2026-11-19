@@ -492,7 +492,7 @@ export async function attachInvoicePdf(invoiceId: string, form: FormData): Promi
   /* Se ce n'era un altro con estensione diversa, va tolto: due file per la
      stessa fattura e non si sa più quale sia il documento. */
   const old = (inv as { pdf_path: string | null }).pdf_path
-  if (old && old !== key) { try { await deleteObject(old) } catch { /* già sparito */ } }
+  if (old?.startsWith('invoices/') && old !== key) { try { await deleteObject(old) } catch { /* già sparito */ } }
 
   const { error } = await admin.from('invoices').update({ pdf_path: key }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
@@ -505,7 +505,7 @@ export async function removeInvoicePdf(invoiceId: string) {
   const admin = createActorClient(uid)
   const { data: inv } = await admin.from('invoices').select('pdf_path').eq('id', invoiceId).maybeSingle()
   const path = (inv as { pdf_path: string | null } | null)?.pdf_path
-  if (path) { try { await deleteObject(path) } catch { /* già sparito */ } }
+  if (path?.startsWith('invoices/')) { try { await deleteObject(path) } catch { /* già sparito */ } }
   const { error } = await admin.from('invoices').update({ pdf_path: null }).eq('id', invoiceId)
   if (error) throw new Error(error.message)
   rev()

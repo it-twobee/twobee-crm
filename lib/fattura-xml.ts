@@ -462,7 +462,7 @@ export function parseFattura(xml: string, ownVat: string): ParsedInvoice[] {
  * **stessa** fattura, e importarla due volte raddoppierebbe il fatturato del
  * mese. Non il nome del file: lo SdI ne genera uno diverso a ogni scarico.
  */
-export const invoiceKey = (i: Pick<ParsedInvoice, 'supplier' | 'number' | 'issuedOn' | 'docType'>) =>
+export const invoiceKey = (i: Pick<ParsedInvoice, 'number' | 'issuedOn' | 'docType'> & { supplier: Pick<InvoiceParty, 'vat' | 'taxCode' | 'name'> }) =>
   [i.supplier.vat ?? i.supplier.taxCode ?? i.supplier.name, i.docType, i.number, i.issuedOn]
     .join('|').toUpperCase()
 

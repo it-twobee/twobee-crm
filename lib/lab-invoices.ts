@@ -2,7 +2,7 @@ import { invoiceStatus, isOpen, isVoided, partlyVoided, txCandidates, type Invoi
 import { toInvoices } from '@/lib/invoices-load'
 import { quarterMonths, quarterLabel, type Quarter } from '@/lib/vat'
 
-export type LabInvoice = Invoice & { currency: string; withholding: number; declaredPaidAmount: number | null }
+export type LabInvoice = Invoice & { currency: string; withholding: number; declaredPaidAmount: number | null; paymentReference?: string }
 
 export function invoicePeriod(value: string | undefined) {
   if (!value || !/^(19|20)\d{2}-T[1-4]$/.test(value)) return null
@@ -47,6 +47,7 @@ export function toLabInvoices(rows: Record<string, unknown>[]): LabInvoice[] {
   return toInvoices(rows).map(invoice => {
     const row = meta.get(invoice.id)!
     return { ...invoice, currency: String(row.currency), withholding: numeric(row.withholding),
+      paymentReference: typeof row.notes === 'string' && row.notes.startsWith('Riferimento bancario PDF: ') ? row.notes.slice('Riferimento bancario PDF: '.length).trim() : undefined,
       declaredPaidAmount: row.paid_amount == null ? null : numeric(row.paid_amount) }
   })
 }

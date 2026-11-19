@@ -67,7 +67,9 @@ function signal(m: MatchMovement, d: MatchDocument, cache: Map<string, string[]>
   const name = nameSignal(entityName(d), `${m.label} ${m.description ?? ''}`, cache)
   const precedents = aliases.get(historyKey(m, d)) ?? 0
   const identity = Math.max(name.value, precedents ? .9 : 0)
-  const reference = documentReference(d.number ?? '', [m.description, m.reference].filter(Boolean).join(' '))
+  const memo = [m.description, m.reference].filter(Boolean).join(' ')
+  const reference = documentReference(d.number ?? '', memo)
+    || !!d.paymentReference && documentReference(d.paymentReference, memo)
   const exact = cents(m.available!) === cents(d.remaining!), delta = Math.abs(cents(m.available!) - cents(d.remaining!))
   const reasons: string[] = [], warnings: string[] = []
   let amountPoints = 0
