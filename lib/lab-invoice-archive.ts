@@ -21,7 +21,7 @@ export async function readArchivedInvoicePdf(id: string) {
 export async function listArchivedInvoicePdfs(query: string, page: number) {
   await requireLabAdmin()
   const size = 24
-  const search = query.replace(/[%_*\\]/g, '').trim()
+  const search = query.replace(/[%*\\]/g, '').trim()
   const request = pdfCandidates().order('uploaded_at', { ascending: false }).order('id')
   if (search) request.ilike('filename', `%${search}%`)
   const { data, error } = await request.range(page * size, (page + 1) * size)

@@ -5,7 +5,7 @@ import { requireEconomicsAdmin } from '@/lib/economics-guard'
 import { requireLabAdmin } from '@/lib/lab-guard'
 import { createActorClient } from '@/lib/supabase/admin'
 import { archiveUuid, parseArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
-import { readArchivedInvoicePdf } from '@/lib/lab-invoice-archive'
+import { listArchivedInvoicePdfs, readArchivedInvoicePdf } from '@/lib/lab-invoice-archive'
 import { invoiceKey } from '@/lib/fattura-xml'
 import { ownVat } from '@/app/actions/invoices'
 import { getObject } from '@/lib/storage/s3'
@@ -65,5 +65,24 @@ export async function acquireArchivedInvoice(archiveId: string, input: ArchiveIn
     return { ok: true as const, id: String(id), reused: !!existing, hasOtherOriginal: !!existing?.pdf_path && existing.pdf_path !== file.storage_key }
   } catch (error) {
     return { ok: false as const, message: error instanceof Error ? error.message : 'Acquisizione non completata.' }
+  }
+}
+
+
+export async function selectArchivedInvoices(query: string) {
+  try {
+    await requireLabAdmin()
+    await requireEconomicsAdmin()
+    const rows = []
+    for (let page = 0; page < 50; page++) {
+      const result = await listArchivedInvoicePdfs(query.slice(0, 120), page)
+      if (!result) throw Error('Archivio non disponibile. Riprova.')
+      rows.push(...result.rows.filter(row => !row.invoiceId))
+      if (rows.length > 100) break
+      if (!result.more) return { ok: true as const, rows }
+    }
+    throw Error('La ricerca è troppo ampia per un lotto. Restringila o seleziona i PDF per pagina (fino a 100).')
+  } catch (error) {
+    return { ok: false as const, message: error instanceof Error ? error.message : 'Selezione non completata.' }
   }
 }

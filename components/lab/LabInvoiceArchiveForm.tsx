@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from '@/components/lab/LabLink'
 import { acquireArchivedInvoice } from '@/app/actions/lab-invoice-archive'
-import { emptyArchiveInvoice, suggestArchivedInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
+import { readArchivedInvoiceDraft } from '@/lib/read-archived-invoice-pdf'
+import { emptyArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
 
 const control = 'mt-1 block min-h-11 w-full min-w-0 rounded-xl border border-border-interactive bg-surface px-3 text-sm text-text-primary'
 const fields = [
@@ -28,20 +29,8 @@ export default function LabInvoiceArchiveForm({ id, filename }: { id: string; fi
     const controller = new AbortController()
     async function read() {
       try {
-        const response = await fetch(pdfUrl, { signal: controller.signal })
-        if (!response.ok) throw Error('PDF non disponibile')
-        const pdfjs = await import('pdfjs-dist/build/pdf.min.mjs')
-        pdfjs.GlobalWorkerOptions.workerSrc = `/pdfjs/${pdfjs.version}/pdf.worker.min.mjs`
-        const pdf = await pdfjs.getDocument({ data: new Uint8Array(await response.arrayBuffer()), isEvalSupported: false }).promise
-        try {
-          const pages = []
-          for (let page = 1; page <= Math.min(pdf.numPages, 5); page++) {
-            const content = await (await pdf.getPage(page)).getTextContent()
-            pages.push(content.items.map(item => 'str' in item ? item.str : '').join(' '))
-          }
-          const suggestion = suggestArchivedInvoice(pages.join(' '))
-          if (active) { setDraft(suggestion.draft); setBlocked(suggestion.blocked) }
-        } finally { void pdf.destroy() }
+        const suggestion = await readArchivedInvoiceDraft(id, controller.signal)
+        if (active) { setDraft(suggestion.draft); setBlocked(suggestion.blocked) }
       } catch {
         if (active) setReadError('Lettura automatica non disponibile. Apri il PDF e verifica i dati prima di compilare.')
       } finally {
@@ -50,7 +39,7 @@ export default function LabInvoiceArchiveForm({ id, filename }: { id: string; fi
     }
     void read()
     return () => { active = false; controller.abort() }
-  }, [pdfUrl])
+  }, [id])
 
   return (
     <section id="acquisisci-pdf" className="scroll-mt-4 space-y-3 rounded-xl border border-border bg-surface-hover p-4">
