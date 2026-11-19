@@ -9,22 +9,27 @@ export type MatchDocument = { id: string; label: string; date: string; currency:
 export type MatchPair = { movementId: string; documentId: string; amount: number }
 export type MatchPlan = { pairs: MatchPair[]; issues: string[]; total: number; movementRemainders: { id: string; amount: number }[]; documentRemainders: { id: string; amount: number }[] }
 const cents = (v: number) => Math.round(v * 100)
-/** Un addebito con la sola riga costo diretta (stesso fornitore, riga senza fattura propria) non è già «impegnato»: il raccordo documentale non tocca riga, spunte o paid_on. Con quote, fattura diretta o risorse resta bloccato. */
+/** Un addebito il cui unico riferimento economico sono righe costo (campo diretto e/o quote, ognuna su una riga senza fattura propria) non è «impegnato» per il raccordo documentale: il raccordo non tocca righe, quote, spunte né paid_on. Con fattura diretta, ricavi, compensi, F24, risorse, finanziamenti o quote conflittuali resta bloccato. */
 export function costLineOnlyMovement(t: Pick<LabBankTx, 'id' | 'kind' | 'invoice_id' | 'revenue_line_id' | 'cost_line_id' | 'payslip_id' | 'hr_invoice_id'>, refs: LabConnectionData) {
-  if (!t.cost_line_id || t.invoice_id || t.revenue_line_id || t.payslip_id || t.hr_invoice_id || t.kind === 'finanziamento') return false
-  if (refs.salaryLinks.some(l => l.tx_id === t.id) || refs.allocations.some(a => a.tx_id === t.id) || refs.legacy.some(a => a.tx_id === t.id)) return false
-  const line = refs.costs.find(c => c.id === t.cost_line_id)
-  return !!line && line.invoice_id == null
+  if (t.invoice_id || t.revenue_line_id || t.payslip_id || t.hr_invoice_id || t.kind === 'finanziamento') return false
+  if (refs.salaryLinks.some(l => l.tx_id === t.id)) return false
+  const modern = refs.allocations.filter(a => a.tx_id === t.id && !a.superseded), legacy = refs.legacy.filter(a => a.tx_id === t.id)
+  const parts = [...modern, ...legacy]
+  if (!t.cost_line_id && !parts.length) return false
+  const cleanLine = (id: unknown) => { const line = refs.costs.find(c => c.id === id); return !!line && line.invoice_id == null }
+  if (t.cost_line_id && !cleanLine(t.cost_line_id)) return false
+  return parts.every(a => a.cost_line_id && !a.revenue_line_id && !a.payout_id && !a.f24_id && cleanLine(a.cost_line_id))
 }
 export function matchingSources(accounts: LabBankAccount[], txs: LabBankTx[], documents: LabInvoice[], refs: LabConnectionData, proof: InvoiceBankResult, today: string) {
   const movements: MatchMovement[] = txs.filter(t => t.source === 'banca' && t.booked_on <= today).map(t => {
     const account = accounts.find(a => a.id === t.account_id), checked = proof.transactions.get(t.id)
-    const modern = refs.allocations.filter(a => a.tx_id === t.id && !a.superseded), legacy = refs.legacy.filter(a => a.tx_id === t.id)
+    const costOnly = costLineOnlyMovement(t, refs)
+    const modern = costOnly ? [] : refs.allocations.filter(a => a.tx_id === t.id && !a.superseded), legacy = costOnly ? [] : refs.legacy.filter(a => a.tx_id === t.id)
     const parts = modern.length ? modern : legacy
     const signature = (rows: typeof parts) => rows.map(a => JSON.stringify([a.revenue_line_id ?? null, a.cost_line_id ?? null, a.payout_id ?? null, a.f24_id ?? null, cents(Number(a.amount))])).sort().join('|')
     const conflicting = modern.length > 0 && legacy.length > 0 && signature(modern) !== signature(legacy)
     const reserved = parts.reduce((n, a) => n + cents(Number(a.amount)), 0) + (refs.invoiceShares ?? []).filter(s => s.tx_id === t.id).reduce((n, s) => n + cents(s.amount), 0)
-    const explicit = !!(t.invoice_id || t.revenue_line_id || (t.cost_line_id && !costLineOnlyMovement(t, refs)) || t.payslip_id || t.hr_invoice_id || refs.salaryLinks.some(l => l.tx_id === t.id))
+    const explicit = !!(t.invoice_id || t.revenue_line_id || (t.cost_line_id && !costOnly) || t.payslip_id || t.hr_invoice_id || refs.salaryLinks.some(l => l.tx_id === t.id))
     const issues = [...(checked?.issues ?? []), ...(checked?.links.flatMap(l => l.issues) ?? [])]
     const why = !account || !checked ? 'Conto o raccordi non disponibili' : t.hidden_reason ? 'Movimento nascosto operativo: verifica il motivo prima di raccordare fatture' : t.kind === 'commissione' ? 'Commissione bancaria: causale separata dalle fatture' : t.kind === 'imposta' ? 'Imposta: apri i versamenti' : t.kind === 'finanziamento' ? 'Finanziamento: causale separata dalle fatture' : t.kind === 'giroconto' || t.transfer_pair_id ? 'Giroconto: verifica la coppia di conti' : t.payslip_id || t.hr_invoice_id || refs.salaryLinks.some(l => l.tx_id === t.id) ? 'Movimento riferito a documenti risorse: verifica le quote nella sezione Risorse' : t.no_match_needed ? 'Movimento classificato senza abbinamento richiesto' : conflicting || issues.length ? 'Riferimenti o quote esistenti da verificare' : explicit && !parts.length ? 'Movimento già impegnato da un riferimento diretto' : !Number.isFinite(reserved) || reserved > cents(Math.abs(t.amount)) ? 'Quote esistenti da verificare' : null
     const available = why ? null : Math.max(0, cents(Math.abs(t.amount)) - reserved) / 100

@@ -2,7 +2,7 @@
 
 ## Raccordi: addebito con la sola riga costo, e lettura AI senza parser nativo — 19 novembre 2026
 
-Un addebito che ha **solo** `cost_line_id` (riga costo senza fattura propria, nessuna quota, risorsa o fattura diretta) non è più «già impegnato»: il raccordo documentale non tocca riga, spunte né `paid_on` (`costLineOnlyMovement`, `lib/lab-matching.ts`). Con quote, fattura diretta o riga che punta a un'altra fattura resta bloccato. La lettura AI di `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello; scansioni senza testo restano da compilare singolarmente.
+Un addebito i cui **soli** riferimenti economici sono righe costo senza fattura propria (campo diretto e/o quote `payment_allocations`/`bank_tx_lines`, nessun ricavo, compenso, F24, risorsa o fattura diretta) non è più «già impegnato»: il raccordo documentale non tocca riga, spunte né `paid_on` (`costLineOnlyMovement`, `lib/lab-matching.ts`). Con quote, fattura diretta o riga che punta a un'altra fattura resta bloccato. La lettura AI di `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello; scansioni senza testo restano da compilare singolarmente.
 
 ## Acquisizione AI e prestazioni occasionali — 19 novembre 2026
 
