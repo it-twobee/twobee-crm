@@ -1,5 +1,9 @@
 # Laboratorio (`/lab`, §474-§500)
 
+## Raccordi: addebito con la sola riga costo, e lettura AI senza parser nativo — 19 novembre 2026
+
+Un addebito che ha **solo** `cost_line_id` (riga costo senza fattura propria, nessuna quota, risorsa o fattura diretta) non è più «già impegnato»: il raccordo documentale non tocca riga, spunte né `paid_on` (`costLineOnlyMovement`, `lib/lab-matching.ts`). Con quote, fattura diretta o riga che punta a un'altra fattura resta bloccato. La lettura AI di `/lab/fonti` non usa più `pdf-parse` sul server (in produzione la route rispondeva 500): il testo lo estrae il browser con pdfjs e la route lo invia al modello; scansioni senza testo restano da compilare singolarmente.
+
 ## Acquisizione AI e prestazioni occasionali — 19 novembre 2026
 
 Estensione del percorso esistente /lab/fonti: estrazione AI per PDF di layout diversi, oltre ai quattro lettori locali già presenti. L'utente sceglie «Estrai con AI»: il server legge l'originale privato, non un testo fornito dal browser, e propone campi con citazione. Nessuna scrittura dalla route di estrazione. Gate Lab ed Economics prima del documento e del provider; chiave AI solo server. I documenti sono dati non attendibili, senza strumenti o URL eseguibili dal modello. Campi senza citazione riscontrabile restano vuoti; citazione presente non significa interpretazione contabile certificata. L'utente controlla l'originale e conferma prima dell'acquisizione già esistente.

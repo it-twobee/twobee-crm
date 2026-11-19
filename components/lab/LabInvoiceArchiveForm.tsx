@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from '@/components/lab/LabLink'
 import { acquireArchivedInvoice } from '@/app/actions/lab-invoice-archive'
-import { readArchivedInvoiceDraft } from '@/lib/read-archived-invoice-pdf'
+import { readArchivedInvoiceDraft, readArchivedInvoiceText } from '@/lib/read-archived-invoice-pdf'
 import { emptyArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
 import type { InvoiceExtraction } from '@/lib/invoice-extraction'
 
@@ -64,7 +64,8 @@ export default function LabInvoiceArchiveForm({ id, filename }: { id: string; fi
       {!result?.ok && <div className="space-y-2"><button type="button" disabled={reading || pending || aiBusy} onClick={async () => {
         setAiBusy(true); setReadError(''); setResult(null)
         try {
-          const response = await fetch(`/api/lab/invoice-archive/${id}/extract`, { method: 'POST', signal: AbortSignal.timeout(150000) })
+          const source = await readArchivedInvoiceText(id)
+          const response = await fetch(`/api/lab/invoice-archive/${id}/extract`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(source), signal: AbortSignal.timeout(150000) })
           const data = await response.json()
           if (!response.ok) throw Error(data.message || 'Lettura AI non disponibile.')
           setAi(data); setDraft(data.draft); setBlocked(data.blocked); setReviewed(false)

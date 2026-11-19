@@ -1,6 +1,6 @@
 import { suggestArchivedInvoice } from '@/lib/archived-invoice'
 
-export async function readArchivedInvoiceDraft(id: string, signal?: AbortSignal) {
+export async function readArchivedInvoiceText(id: string, signal?: AbortSignal) {
   const response = await fetch(`/api/lab/invoice-archive/${id}`, { signal })
   if (!response.ok) throw Error('PDF non disponibile.')
   const pdfjs = await import('pdfjs-dist/build/pdf.min.mjs')
@@ -13,6 +13,10 @@ export async function readArchivedInvoiceDraft(id: string, signal?: AbortSignal)
       const content = await (await pdf.getPage(page)).getTextContent()
       pages.push(content.items.map(item => 'str' in item ? item.str + ('hasEOL' in item && item.hasEOL ? '\n' : ' ') : '').join(''))
     }
-    return suggestArchivedInvoice(pages.join(' '))
+    return { text: pages.join(' '), pages: pdf.numPages }
   } finally { await pdf.destroy() }
+}
+
+export async function readArchivedInvoiceDraft(id: string, signal?: AbortSignal) {
+  return suggestArchivedInvoice((await readArchivedInvoiceText(id, signal)).text)
 }
