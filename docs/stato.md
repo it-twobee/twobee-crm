@@ -1,5 +1,9 @@
 # Dove siamo
 
+## Lettore locale Slack — 20 novembre 2026
+
+`suggestArchivedInvoice` riconosce le ricevute Slack Technologies Limited (layout italiano): numero `SBIE-…`, data di pagamento, imponibile, totale, riferimento ricevuta e P.IVA del fornitore (non quella sotto «Indirizzo di fatturazione»). IVA a 0 solo se il PDF dichiara l'inversione contabile, altrimenti vuota. Provato su 8 PDF reali; le ricevute sono intestate a una persona fisica, quindi la verifica del destinatario resta prima della registrazione. Google non ha lettore PDF: Google Cloud Italy emette fatture elettroniche SdI, e il PDF è solo il riepilogo dell'XML da caricare da Carica.
+
 ## Acquisizione AI e prestazioni occasionali — 19 novembre 2026
 
 Estensione del percorso esistente /lab/fonti: estrazione AI per PDF di layout diversi, oltre ai quattro lettori locali già presenti. L'utente sceglie «Estrai con AI»: il server legge l'originale privato, non un testo fornito dal browser, e propone campi con citazione. Nessuna scrittura dalla route di estrazione. Gate Lab ed Economics prima del documento e del provider; chiave AI solo server. I documenti sono dati non attendibili, senza strumenti o URL eseguibili dal modello. Campi senza citazione riscontrabile restano vuoti; citazione presente non significa interpretazione contabile certificata. L'utente controlla l'originale e conferma prima dell'acquisizione già esistente.

@@ -33,6 +33,22 @@ assert.equal(anthropic.net, 105.20)
 assert.equal(anthropic.vat, 23.14)
 assert.equal(anthropic.total, 128.34)
 assert.equal(anthropic.vatId, '', 'Non attribuisce al fornitore la partita IVA riportata sotto Bill to')
-const archiveAction = readFileSync('app/actions/lab-invoice-archive.ts', 'utf8')
+const slackText = (num: string, date: string, amount: string, tail = 'Imposta da versare in regime di inversione contabile') =>
+  `Ricevuta Numero fattura SBIE \x00 ${num} Numero ricevuta 2531 \x00 6402 \x00 1144 Data di pagamento ${date} Slack Technologies Limited ` +
+  `Salesforce Tower Dublin 1 Irlanda IE VAT IE3336483DH Indirizzo di fatturazione Marco Lucci IT VAT IT10952881216 ` +
+  `Importo di ${amount} € pagato Descrizione Q.tà Prezzo unitario Importo Inizio del piano mensile Pro 3 8,25 € ${amount} € ` +
+  `Subtotale ${amount} € ${tail} Totale ${amount} € Importo pagato ${amount} €`
+const slack = parseArchiveInvoice(suggestArchivedInvoice(slackText('11277703', '1 aprile 2026', '24,75')).draft)
+assert.equal(slack.number, 'SBIE-11277703')
+assert.equal(slack.date, '2026-04-01')
+assert.equal(slack.total, 24.75)
+assert.equal(slack.net, 24.75)
+assert.equal(slack.vat, 0)
+assert.equal(slack.reference, '2531-6402-1144')
+assert.equal(slack.vatId, 'IE3336483DH', 'La partita IVA è quella di Slack, non quella sotto l’indirizzo di fatturazione')
+const slackNoReverse = suggestArchivedInvoice(slackText('11277703', '1 aprile 2026', '24,75', 'IVA 22% 5,45 €')).draft
+assert.equal(slackNoReverse.vat, '', 'Senza inversione contabile l’IVA non si presume zero')
+assert.equal(suggestArchivedInvoice('Slack Technologies Limited Ricevuta').draft.total, '', 'Un campo assente resta vuoto')
+const archiveAction =readFileSync('app/actions/lab-invoice-archive.ts', 'utf8')
 assert.doesNotMatch(archiveAction, /\bfrom_sdi\s*:/, 'Il registro genera from_sdi dal documento XML')
 console.log('Tutti i controlli passano')

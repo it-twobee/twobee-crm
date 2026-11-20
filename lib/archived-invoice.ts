@@ -72,6 +72,19 @@ export function suggestArchivedInvoice(raw: string) {
       currency: totals ? 'EUR' : '', net: decimal(totals?.[1]), vat: decimal(totals?.[2]), total: decimal(totals?.[3]),
     })
     draft.reference = draft.number.replace(/-1$/, '')
+  } else if (/Slack Technologies Limited/i.test(text)) {
+    const euroAfter = (label: string) => decimal(value(new RegExp(`\\b${label}\\s+(${euroAmount.source})\\s*€`, 'i')))
+    const total = euroAfter('Totale')
+    const net = euroAfter('Subtotale')
+    const reverse = /inversione contabile|reverse charge/i.test(text)
+    Object.assign(draft, {
+      supplier: 'Slack Technologies Limited', vatId: value(/\bIE VAT\s+(IE[A-Z0-9]+)/i),
+      number: text.match(/Numero fattura\s+(SBIE)[\s\x00-]*(\d+)/i)?.slice(1).join('-') ?? '',
+      date: localDate(value(/Data di pagamento\s+(\d{1,2} [a-z]+ \d{4})/i)),
+      currency: total ? 'EUR' : '', total, net,
+      vat: total && net && reverse && Number(total) === Number(net) ? '0' : '',
+      reference: text.match(/Numero ricevuta\s+(\d{4})[\s\x00-]+(\d{4})[\s\x00-]+(\d{4})\b/i)?.slice(1).join('-') ?? '',
+    })
   } else if (/Regus Business Centres Italia/i.test(text)) {
     const total = decimal(value(new RegExp(`Totale \\(IVA incl\\.\\)\\s*€\\s*(${euroAmount.source})`, 'i')))
     const net = decimal(value(new RegExp(`Totale \\(IVA escl\\.\\)\\s*€\\s*(${euroAmount.source})`, 'i')))
