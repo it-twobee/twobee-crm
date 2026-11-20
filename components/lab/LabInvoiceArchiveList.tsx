@@ -5,6 +5,7 @@ import Link from '@/components/lab/LabLink'
 import { acquireArchivedInvoice, selectArchivedInvoices } from '@/app/actions/lab-invoice-archive'
 import { parseArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
 import { readArchivedInvoiceDraft } from '@/lib/read-archived-invoice-pdf'
+import { ARCHIVE_PAGE_SIZES } from '@/lib/archive-page-sizes'
 
 type ArchiveRow = { id: string; filename: string; uploadedAt: string | null; invoiceId: string | null }
 type ReviewRow = { id: string; filename: string; draft?: ArchiveInvoiceDraft; message?: string; invoiceId?: string; manual?: boolean }
@@ -12,7 +13,7 @@ const secondary = 'inline-flex min-h-11 items-center rounded-lg border border-bo
 const primary = 'min-h-11 rounded-lg bg-gold px-3 text-sm font-semibold text-on-gold disabled:opacity-50'
 const batchLimit = 100
 
-export default function LabInvoiceArchiveList({ rows, query, page, more }: { rows: ArchiveRow[]; query: string; page: number; more: boolean }) {
+export default function LabInvoiceArchiveList({ rows, query, page, more, size, total }: { rows: ArchiveRow[]; query: string; page: number; more: boolean; size: number; total: number | null }) {
   const [selection, setSelection] = useState<Record<string, ArchiveRow>>({})
   const [registered, setRegistered] = useState<Record<string, string>>({})
   const [review, setReview] = useState<ReviewRow[] | null>(null)
@@ -22,8 +23,9 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({})
   const selectionCount = Object.keys(selection).length
   const ready = review?.filter(row => row.draft && !row.invoiceId && confirmed[row.id]) ?? []
-  const href = (next: number, id?: string) => `/lab/fonti?${new URLSearchParams({
-    ...(query ? { archivio: query } : {}), ...(next ? { pagina: String(next) } : {}), ...(id ? { pdf: id } : {}),
+  const pages = total ? Math.max(1, Math.ceil(total / size)) : null
+  const href = (next: number, id?: string, rows = size) => `/lab/fonti?${new URLSearchParams({
+    ...(query ? { archivio: query } : {}), ...(next ? { pagina: String(next) } : {}), ...(rows !== ARCHIVE_PAGE_SIZES[0] ? { righe: String(rows) } : {}), ...(id ? { pdf: id } : {}),
   })}#${id ? 'acquisisci-pdf' : 'archivio-documenti'}`
 
   function add(next: ArchiveRow[]) {
@@ -173,10 +175,16 @@ export default function LabInvoiceArchiveList({ rows, query, page, more }: { row
               </li>
             })}
           </ul>
-          {(page > 0 || more) && <nav aria-label="Pagine archivio" className="flex gap-3">
+          <nav aria-label="Pagine archivio" className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {page > 0 && <Link href={href(page - 1)} className="inline-flex min-h-11 items-center text-sm text-gold-text underline">Precedenti</Link>}
+            <span className="text-sm text-text-secondary">Pagina {page + 1}{pages ? ` di ${pages}` : ''}{total != null ? ` · ${total} PDF` : ''}</span>
             {more && <Link href={href(page + 1)} className="inline-flex min-h-11 items-center text-sm text-gold-text underline">Successivi</Link>}
-          </nav>}
+            <span className="ml-auto flex items-center gap-2 text-sm text-text-secondary">Righe
+              {ARCHIVE_PAGE_SIZES.map(n => n === size
+                ? <span key={n} aria-current="true" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg bg-gold-dim px-2 font-semibold text-gold-text">{n}</span>
+                : <Link key={n} href={href(0, undefined, n)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border-interactive px-2 text-text-primary hover:bg-surface-hover">{n}</Link>)}
+            </span>
+          </nav>
         </>
       )}
     </div>

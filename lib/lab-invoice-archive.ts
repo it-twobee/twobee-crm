@@ -4,7 +4,7 @@ import { requireLabAdmin } from '@/lib/lab-guard'
 
 const columns = 'id,filename,storage_key,uploaded_at'
 const pdfCandidates = () => createAdminClient().from('economics_documents')
-  .select(columns)
+  .select(columns, { count: 'exact' })
   .in('kind', ['altro', 'fattura'])
   .ilike('filename', '%.pdf')
   .like('storage_key', 'economics/%')
@@ -18,13 +18,12 @@ export async function readArchivedInvoicePdf(id: string) {
   return data
 }
 
-export async function listArchivedInvoicePdfs(query: string, page: number) {
+export async function listArchivedInvoicePdfs(query: string, page: number, size = 20) {
   await requireLabAdmin()
-  const size = 24
   const search = query.replace(/[%*\\]/g, '').trim()
   const request = pdfCandidates().order('uploaded_at', { ascending: false }).order('id')
   if (search) request.ilike('filename', `%${search}%`)
-  const { data, error } = await request.range(page * size, (page + 1) * size)
+  const { data, error, count } = await request.range(page * size, (page + 1) * size)
   if (error || !data) return null
   const rows = data.slice(0, size)
   const { data: invoices, error: registryError } = rows.length
@@ -34,6 +33,7 @@ export async function listArchivedInvoicePdfs(query: string, page: number) {
   const byPath = new Map(invoices?.map(row => [row.pdf_path, row.id]))
   return {
     more: data.length > size,
+    total: count,
     rows: rows.map(row => ({ id: row.id, filename: row.filename, uploadedAt: row.uploaded_at, invoiceId: byPath.get(row.storage_key) ?? null })),
   }
 }
