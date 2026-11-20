@@ -26,7 +26,7 @@ import {
 import {
   importBankCsv, reconcile, unreconcile, markNoMatch, addManualTx, deleteTx,
   pushPartnerSpend, setAllowance, updateAccount, pushAccountSpend,
-  linkPayslipsToTx, unlinkPayslipsFromTx,
+  linkPayslipsToTx, unlinkPayslipsFromTx, pairTransfers,
 } from '@/app/actions/bank'
 import { DistintaDialog } from './DistintaDialog'
 import {
@@ -485,6 +485,18 @@ export function BankClient({
             <button onClick={() => setManual(m => !m)}
               className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press">
               <Plus className="w-3.5 h-3.5" />Movimento a mano
+            </button>
+            <button disabled={pending} title="Abbina l'uscita e l'entrata dello stesso giroconto fra conti propri: stesso importo, verso opposto, entro quattro giorni"
+              onClick={() => start(async () => {
+                try {
+                  const r = await pairTransfers()
+                  if (r.coppie) toast.success(`${r.coppie} giroconti appaiati`)
+                  else toast.info('Nessun giroconto da appaiare: ogni lato ha già la sua coppia o manca l\u2019altro')
+                  router.refresh()
+                } catch (e) { toast.error(e instanceof Error ? e.message : 'Errore') }
+              })}
+              className="flex items-center gap-1.5 text-2xs font-semibold border border-border rounded-xl px-3 py-2 text-text-secondary hover:text-text-primary hover:bg-surface-hover press disabled:opacity-40">
+              <Repeat className="w-3.5 h-3.5" />Appaia giroconti
             </button>
           </div>
         </div>
