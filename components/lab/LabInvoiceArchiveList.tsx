@@ -5,7 +5,7 @@ import Link from '@/components/lab/LabLink'
 import { acquireArchivedInvoice, selectArchivedInvoices } from '@/app/actions/lab-invoice-archive'
 import { parseArchiveInvoice, type ArchiveInvoiceDraft } from '@/lib/archived-invoice'
 import { readArchivedInvoiceDraft } from '@/lib/read-archived-invoice-pdf'
-import { ARCHIVE_PAGE_SIZES } from '@/lib/archive-page-sizes'
+import { ARCHIVE_PAGE_SIZES, ARCHIVE_STATES, type ArchiveState } from '@/lib/archive-page-sizes'
 
 type ArchiveRow = { id: string; filename: string; uploadedAt: string | null; invoiceId: string | null }
 type ReviewRow = { id: string; filename: string; draft?: ArchiveInvoiceDraft; message?: string; invoiceId?: string; manual?: boolean }
@@ -13,7 +13,7 @@ const secondary = 'inline-flex min-h-11 items-center rounded-lg border border-bo
 const primary = 'min-h-11 rounded-lg bg-gold px-3 text-sm font-semibold text-on-gold disabled:opacity-50'
 const batchLimit = 100
 
-export default function LabInvoiceArchiveList({ rows, query, page, more, size, total }: { rows: ArchiveRow[]; query: string; page: number; more: boolean; size: number; total: number | null }) {
+export default function LabInvoiceArchiveList({ rows, query, page, more, size, state, total }: { rows: ArchiveRow[]; query: string; page: number; more: boolean; size: number; state: ArchiveState; total: number | null }) {
   const [selection, setSelection] = useState<Record<string, ArchiveRow>>({})
   const [registered, setRegistered] = useState<Record<string, string>>({})
   const [review, setReview] = useState<ReviewRow[] | null>(null)
@@ -24,8 +24,8 @@ export default function LabInvoiceArchiveList({ rows, query, page, more, size, t
   const selectionCount = Object.keys(selection).length
   const ready = review?.filter(row => row.draft && !row.invoiceId && confirmed[row.id]) ?? []
   const pages = total ? Math.max(1, Math.ceil(total / size)) : null
-  const href = (next: number, id?: string, rows = size) => `/lab/fonti?${new URLSearchParams({
-    ...(query ? { archivio: query } : {}), ...(next ? { pagina: String(next) } : {}), ...(rows !== ARCHIVE_PAGE_SIZES[0] ? { righe: String(rows) } : {}), ...(id ? { pdf: id } : {}),
+  const href = (next: number, id?: string, rows = size, status: ArchiveState = state) => `/lab/fonti?${new URLSearchParams({
+    ...(query ? { archivio: query } : {}), ...(status !== 'tutti' ? { stato: status } : {}), ...(next ? { pagina: String(next) } : {}), ...(rows !== ARCHIVE_PAGE_SIZES[0] ? { righe: String(rows) } : {}), ...(id ? { pdf: id } : {}),
   })}#${id ? 'acquisisci-pdf' : 'archivio-documenti'}`
 
   function add(next: ArchiveRow[]) {
@@ -104,6 +104,11 @@ export default function LabInvoiceArchiveList({ rows, query, page, more, size, t
 
   return (
     <div className="space-y-3">
+      <nav aria-label="Filtra per stato" className="flex flex-wrap items-center gap-2 text-sm text-text-secondary">Mostra
+        {ARCHIVE_STATES.map(item => item.key === state
+          ? <span key={item.key} aria-current="true" className="inline-flex min-h-11 items-center rounded-lg bg-gold-dim px-3 font-semibold text-gold-text">{item.label}</span>
+          : <Link key={item.key} href={href(0, undefined, size, item.key)} className="inline-flex min-h-11 items-center rounded-lg border border-border-interactive px-3 text-text-primary hover:bg-surface-hover">{item.label}</Link>)}
+      </nav>
       <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface-hover p-2">
         <span className="px-2 text-sm font-medium text-text-primary" role="status">{selectionCount} PDF selezionati</span>
         <button type="button" className={secondary} onClick={selectAll} disabled={busy || !!review || !rows.length}>Seleziona tutte</button>
